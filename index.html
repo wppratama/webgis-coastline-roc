@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Indonesia Dynamics Coastlines</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="/webgis-coastline-roc/assets/logo-i--SLuUG.png">
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --navy:       #0a1628;
+        --navy-mid:   #0f2040;
+        --accent:     #1a7aff;
+        --accent-dim: #1a5ec4;
+        --teal:       #00c9a7;
+        --amber:      #f5a623;
+        --red:        #ff4d4d;
+        --surface:    #111e35;
+        --surface-2:  #172540;
+        --border:     rgba(255,255,255,0.08);
+        --border-md:  rgba(255,255,255,0.14);
+        --text-1:     #eef2ff;
+        --text-2:     #8ba3c7;
+        --text-3:     #4d6a94;
+        --sidebar-w:  290px;
+        --header-h:   52px;
+        --font:       'DM Sans', sans-serif;
+        --mono:       'DM Mono', monospace;
+        --r-sm: 6px; --r-md: 10px; --r-lg: 14px;
+      }
+
+      html, body { height: 100%; font-family: var(--font); background: var(--navy); color: var(--text-1); overflow: hidden; }
+
+      #app {
+        display: grid;
+        grid-template-columns: var(--sidebar-w) 1fr;
+        grid-template-rows: var(--header-h) 1fr;
+        height: 100vh;
+      }
+
+      /* ── TOPBAR ── */
+      #topbar {
+        grid-column: 1 / -1;
+        display: flex; align-items: center; gap: 14px;
+        padding: 0 18px;
+        background: var(--navy-mid); border-bottom: 1px solid var(--border);
+        z-index: 100;
+      }
+      .brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+      .brand-icon { width: 30px; height: 30px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+      .brand-icon svg { width: 16px; height: 16px; fill: white; }
+      .brand-name { font-size: 14px; font-weight: 600; color: var(--text-1); }
+      .brand-sub  { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+      .divider { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
+      .search-wrap { flex: 1; max-width: 360px; position: relative; }
+      .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--text-3); pointer-events: none; }
+      .search-wrap input { width: 100%; padding: 7px 12px 7px 30px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); font-family: var(--font); font-size: 13px; color: var(--text-1); outline: none; transition: border-color 0.15s; }
+      .search-wrap input::placeholder { color: var(--text-3); }
+      .search-wrap input:focus { border-color: var(--accent); }
+      .topbar-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+      .status-pill { display: flex; align-items: center; gap: 6px; padding: 5px 11px; background: rgba(0,201,167,0.1); border: 1px solid rgba(0,201,167,0.25); border-radius: 20px; font-size: 11px; font-weight: 500; color: var(--teal); }
+      .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); animation: pulse 2s ease-in-out infinite; }
+      @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.35} }
+      .tb-btn { display: flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: var(--r-sm); font-family: var(--font); font-size: 12px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; }
+      .tb-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+      .btn-ghost { background: transparent; color: var(--text-2); border: 1px solid var(--border); }
+      .btn-ghost:hover { background: var(--surface); color: var(--text-1); }
+      .btn-solid { background: var(--accent); color: #fff; }
+      .btn-solid:hover { background: var(--accent-dim); }
+
+      /* ── SIDEBAR ── */
+      #sidebar { grid-column: 1; grid-row: 2; background: var(--navy-mid); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+      .sb-scroll { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+      .sb-scroll::-webkit-scrollbar { width: 3px; }
+      .sb-scroll::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 2px; }
+
+      /* ── PANEL ── */
+      .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+      .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 9px 13px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+      .ph-left { display: flex; align-items: center; gap: 8px; }
+      .ph-icon { width: 16px; height: 16px; color: var(--accent); display: flex; align-items: center; }
+      .ph-icon svg { width: 14px; height: 14px; }
+      .ph-title { font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.08em; }
+      .ph-chev { width: 13px; height: 13px; color: var(--text-3); transition: transform 0.2s; flex-shrink: 0; }
+      .ph-chev.open { transform: rotate(180deg); }
+      .panel-body { padding: 11px 13px; display: flex; flex-direction: column; gap: 7px; }
+
+      /* ── STATS ── */
+      .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 11px 13px; }
+      .stat-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 9px 11px; }
+      .stat-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-bottom: 4px; }
+      .stat-value { font-size: 20px; font-weight: 600; font-family: var(--mono); color: var(--text-1); line-height: 1; }
+      .stat-unit  { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+      .d-neg { font-size:10px; font-weight:500; color: var(--red); margin-top:2px; }
+      .d-pos { font-size:10px; font-weight:500; color: var(--teal); margin-top:2px; }
+
+      /* ── LAYER ROW ── */
+      .layer-row { display: flex; align-items: center; gap: 9px; padding: 5px 7px; border-radius: var(--r-sm); transition: background 0.12s; }
+      .layer-row:hover { background: var(--surface-2); }
+      .layer-status { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); flex-shrink: 0; transition: background 0.3s; }
+      .layer-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+      .layer-name { font-size: 13px; color: var(--text-1); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .layer-type { font-size: 10px; font-family: var(--mono); padding: 2px 6px; border-radius: 4px; font-weight: 500; flex-shrink: 0; }
+
+      /* ── TOGGLE ── */
+      .tog { position: relative; width: 30px; height: 17px; flex-shrink: 0; }
+      .tog input { opacity: 0; width: 0; height: 0; position: absolute; }
+      .tog-track { position: absolute; inset: 0; background: var(--border-md); border-radius: 20px; cursor: pointer; transition: background 0.2s; }
+      .tog-track::after { content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%; background: white; top: 2.5px; left: 2.5px; transition: transform 0.2s; }
+      .tog input:checked + .tog-track { background: var(--accent); }
+      .tog input:checked + .tog-track::after { transform: translateX(13px); }
+
+      /* ── BASEMAP RADIO ── */
+      .basemap-row { display: flex; align-items: center; gap: 9px; padding: 5px 7px; border-radius: var(--r-sm); cursor: pointer; }
+      .basemap-row:hover { background: var(--surface-2); }
+      .basemap-radio { accent-color: var(--accent); width: 13px; height: 13px; cursor: pointer; }
+      .basemap-label { font-size: 13px; color: var(--text-1); flex: 1; }
+
+      /* ── OPACITY ── */
+      .opacity-wrap { display: flex; flex-direction: column; gap: 7px; }
+      .opacity-hdr { display: flex; justify-content: space-between; align-items: center; }
+      .opa-label { font-size: 12px; color: var(--text-2); }
+      .opa-val   { font-size: 12px; font-family: var(--mono); color: var(--accent); font-weight: 500; }
+      input[type="range"].gis-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; background: var(--surface-2); border-radius: 2px; outline: none; border: 1px solid var(--border); }
+      input[type="range"].gis-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 2px solid var(--navy-mid); box-shadow: 0 0 0 1px var(--accent); }
+
+      /* ── LEGEND ── */
+      .legend-item { display: flex; align-items: center; gap: 9px; padding: 6px 0; }
+      .legend-item:not(:last-child) { border-bottom: 1px solid var(--border); }
+      .legend-line { width: 22px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+      .legend-info { flex: 1; }
+      .legend-name { font-size: 12px; font-weight: 500; color: var(--text-1); }
+      .legend-desc { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+      .legend-tag  { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+
+      /* ── MAP ── */
+      #map { grid-column: 2; grid-row: 2; position: relative; background: #0d1e36; overflow: hidden; }
+
+      .leaflet-container { background: #0d1e36 !important; font-family: var(--font) !important; }
+      .leaflet-control-attribution { font-size: 10px !important; background: rgba(10,22,40,0.8) !important; color: var(--text-3) !important; }
+      .leaflet-control-attribution a { color: var(--accent) !important; }
+
+      /* ── MAP TOOLBAR ── */
+      .map-toolbar { position: absolute; top: 14px; right: 14px; display: flex; flex-direction: column; gap: 5px; z-index: 500; }
+      .tool-group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+      .map-tool { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: var(--text-2); transition: all 0.12s; }
+      .map-tool:not(:last-child) { border-bottom: 1px solid var(--border); }
+      .map-tool:hover { background: var(--surface-2); color: var(--text-1); }
+      .map-tool svg { width: 15px; height: 15px; }
+
+      /* ── MAP CHIPS ── */
+      .map-chips { position: absolute; top: 14px; left: 14px; display: flex; align-items: center; gap: 8px; z-index: 500; }
+      .map-chip { display: flex; align-items: center; gap: 6px; padding: 5px 11px; background: rgba(10,22,40,0.82); border: 1px solid var(--border); border-radius: var(--r-sm); font-size: 11px; color: var(--text-2); backdrop-filter: blur(4px); }
+      .chip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+      /* ── MAP BOTTOM BAR ── */
+      .map-bottombar { position: absolute; bottom: 14px; left: 14px; right: 14px; display: flex; align-items: center; justify-content: space-between; z-index: 500; pointer-events: none; }
+      .coords-box, .scale-box { display: flex; align-items: center; gap: 8px; padding: 5px 12px; background: rgba(10,22,40,0.82); border: 1px solid var(--border); border-radius: var(--r-sm); font-family: var(--mono); font-size: 11px; color: var(--text-2); pointer-events: all; backdrop-filter: blur(4px); }
+      .coord-sep { width: 1px; height: 11px; background: var(--border); }
+      .scale-line { width: 44px; height: 2px; background: var(--text-2); border-radius: 1px; position: relative; }
+      .scale-line::before, .scale-line::after { content: ''; position: absolute; width: 1px; height: 5px; background: var(--text-2); bottom: 0; }
+      .scale-line::before { left: 0; } .scale-line::after { right: 0; }
+
+      /* ── POPUP & TOOLTIP ── */
+      .leaflet-popup-content-wrapper { background: var(--surface) !important; border: 1px solid var(--border-md) !important; border-radius: var(--r-md) !important; box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important; padding: 0 !important; }
+      .leaflet-popup-tip { background: var(--surface) !important; }
+      .leaflet-popup-close-button { color: var(--text-2) !important; top: 8px !important; right: 10px !important; font-size: 16px !important; }
+      .gis-popup { font-family: var(--font); min-width: 190px; }
+      .popup-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px 8px; border-left: 3px solid; border-bottom: 1px solid var(--border); }
+      .popup-icon  { font-size: 14px; }
+      .popup-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; }
+      .popup-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+      .badge-erosi  { background: rgba(255,77,77,0.15);  color: #ff6b6b; }
+      .badge-akresi { background: rgba(0,201,167,0.15); color: #00c9a7; }
+      .popup-table { width: 100%; border-collapse: collapse; display: table; }
+      .pt-label { font-size: 12px; color: var(--text-3); padding: 5px 14px; width: 50%; }
+      .pt-val   { font-size: 12px; color: var(--text-1); padding: 5px 14px; font-weight: 500; }
+      .leaflet-tooltip.gis-tooltip-wrap { background: var(--navy-mid) !important; border: 1px solid var(--border-md) !important; border-radius: var(--r-sm) !important; box-shadow: none !important; padding: 5px 10px !important; }
+      .leaflet-tooltip.gis-tooltip-wrap::before { display: none !important; }
+      .gis-tooltip { display: flex; flex-direction: column; gap: 1px; font-family: var(--font); }
+      .tooltip-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
+      .tooltip-value { font-size: 13px; font-weight: 500; color: var(--text-1); }
+      .brand-icon img {width: 36px; height: 36px; object-fit: cover; border-radius: 50%; /* kalau logo bulat */}
+    </style>
+    <script type="module" crossorigin src="/webgis-coastline-roc/assets/index-BqX4brkV.js"></script>
+    <link rel="stylesheet" crossorigin href="/webgis-coastline-roc/assets/index-CIGW-MKW.css">
+  </head>
+  <body>
+    <div id="app">
+
+      <!-- TOPBAR -->
+      <header id="topbar">
+        <div class="brand">
+          <div class="brand-icon">
+            <img src="/webgis-coastline-roc/assets/logo1-TDYo9AcZ.png" alt="logo">
+          </div>
+          <div>
+            <div class="brand-name">Sistem Informasi Spasial Dinamika Garis Pantai Indonesia</div>
+            <div class="brand-sub">Indonesia Dynamics Coastlines & Rates of Changes</div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" placeholder="Cari lokasi, koordinat, atau nama wilayah..." />
+        </div>
+
+        <div class="topbar-right">
+          <div class="status-pill">
+            <div class="status-dot"></div>
+            Server aktif
+          </div>
+          <button class="tb-btn btn-ghost" onclick="document.getElementById('file-upload').click()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Unggah
+          </button>
+          <input type="file" id="file-upload" style="display:none" accept=".gpkg,.geojson,.json">
+          <button class="tb-btn btn-solid">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+            Buka Data
+          </button>
+        </div>
+      </header>
+
+      <!-- SIDEBAR -->
+      <aside id="sidebar">
+        <div class="sb-scroll">
+
+          <!-- RINGKASAN -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="ph-left">
+                <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+                <span class="ph-title">Data Overview</span>
+              </div>
+              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-label">Garis Pantai</div>
+                <div class="stat-value" id="stat-shoreline-count">—</div>
+                <div class="stat-unit">fitur</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Titik Abrasi</div>
+                <div class="stat-value" id="stat-erosi-count">—</div>
+                <div class="stat-unit">titik</div>
+                <div class="d-neg" id="delta-erosi"></div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Titik Akresi</div>
+                <div class="stat-value" id="stat-akresi-count">—</div>
+                <div class="stat-unit">titik</div>
+                <div class="d-pos" id="delta-akresi"></div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">EPSG</div>
+                <div class="stat-value" style="font-size:13px;">4326</div>
+                <div class="stat-unit">WGS 84</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LAYER DATA -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="ph-left">
+                <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
+                <span class="ph-title">Layer Data</span>
+              </div>
+              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="panel-body">
+              <div class="layer-row">
+                <div class="layer-status" id="status-shorelines"></div>
+                <div class="layer-swatch" style="background:#378ADD;"></div>
+                <span class="layer-name">Garis Pantai</span>
+                <label class="tog">
+                  <input type="checkbox" id="toggle-shorelines" checked>
+                  <span class="tog-track"></span>
+                </label>
+              </div>
+              <div class="layer-row">
+                <div class="layer-status" id="status-rates"></div>
+                <div class="layer-swatch" style="background:linear-gradient(135deg,#ff4d4d 50%,#00c9a7 50%);"></div>
+                <span class="layer-name">Titik Laju Perubahan</span>
+                <label class="tog">
+                  <input type="checkbox" id="toggle-rates">
+                  <span class="tog-track"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- BASEMAP -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="ph-left">
+                <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
+                <span class="ph-title">Basemap</span>
+              </div>
+              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="panel-body">
+              <label class="basemap-row">
+                <input class="basemap-radio" type="radio" name="basemap" value="satellite" checked>
+                <span class="basemap-label">Satellite Basemap</span>
+              </label>
+              <label class="basemap-row">
+                <input class="basemap-radio" type="radio" name="basemap" value="osm">
+                <span class="basemap-label">Default Basemap</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- TRANSPARANSI -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="ph-left">
+                <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20"/></svg></div>
+                <span class="ph-title">Transparansi Garis Pantai</span>
+              </div>
+              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="panel-body">
+              <div class="opacity-wrap">
+                <div class="opacity-hdr">
+                  <span class="opa-label">Opacity</span>
+                  <span class="opa-val" id="opacity-val">100%</span>
+                </div>
+                <input type="range" min="0" max="100" value="100" step="1" class="gis-slider" id="opacity-slider">
+              </div>
+            </div>
+          </div>
+
+          <!-- KETERANGAN -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="ph-left">
+                <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+                <span class="ph-title">Keterangan</span>
+              </div>
+              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="panel-body">
+              <div class="legend-item">
+                <div class="legend-line" style="background:#ff4d4d;"></div>
+                <div class="legend-info">
+                  <div class="legend-name">Abrasi</div>
+                  <div class="legend-desc">Abrasi aktif terdeteksi</div>
+                </div>
+                <span class="legend-tag" style="background:rgba(255,77,77,0.12);color:#ff6b6b;">Kritis</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-line" style="background:#8ba3c7;"></div>
+                <div class="legend-info">
+                  <div class="legend-name">Stabil</div>
+                  <div class="legend-desc">Tidak ada perubahan</div>
+                </div>
+                <span class="legend-tag" style="background:rgba(139,163,199,0.12);color:#00c9a7;">Aman</span></span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-line" style="background:#00c9a7;"></div>
+                <div class="legend-info">
+                  <div class="legend-name">Akresi</div>
+                  <div class="legend-desc">Akresi sedimen aktif</div>
+                </div>
+                <span class="legend-tag" style="background:rgba(0,201,167,0.12);color:#8ba3c7;">Pantau</span>
+              </div>
+              <!-- Gradien tahun garis pantai -->
+              <div style="margin-top:4px; padding-top:8px; border-top:1px solid var(--border);">
+                <div class="legend-desc" style="margin-bottom:5px;">Garis Pantai Berdasarkan Tahun</div>
+                <div style="height:4px; width:100%; border-radius:2px; background:linear-gradient(to right, hsl(0,100%,55%), hsl(140,100%,55%), hsl(280,100%,55%));"></div>
+                <div style="display:flex; justify-content:space-between; margin-top:3px;">
+                  <span style="font-size:10px;color:var(--text-3);">1984</span>
+                  <span style="font-size:10px;color:var(--text-3);">2026</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </aside>
+
+      <!-- MAP -->
+      <div id="map">
+        <div class="map-chips">
+          <div class="map-chip">
+            <div class="chip-dot" style="background:#00c9a7;"></div>
+            <span id="chip-basemap">Basemap: Satelit Esri</span>
+          </div>
+          <div class="map-chip">
+            <div class="chip-dot" style="background:#378ADD;"></div>
+            CRS: WGS84 / EPSG:4326
+          </div>
+        </div>
+
+        <div class="map-toolbar">
+          <div class="tool-group">
+            <button class="map-tool" id="btn-zoom-in" title="Zoom In">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button class="map-tool" id="btn-zoom-out" title="Zoom Out">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <div class="tool-group">
+            <button class="map-tool" id="btn-fitbounds" title="Reset tampilan Indonesia">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h5M3 3v5M21 3h-5M21 3v5M3 21h5M3 21v-5M21 21h-5M21 21v-5"/></svg>
+            </button>
+            <button class="map-tool" id="btn-locate" title="Lokasi saya">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            </button>
+            <button class="map-tool" id="btn-fullscreen" title="Layar penuh">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="map-bottombar">
+          <div class="coords-box">
+            <span id="coord-lat">— LS</span>
+            <div class="coord-sep"></div>
+            <span id="coord-lng">— BT</span>
+            <div class="coord-sep"></div>
+            <span id="zoom-level" style="color:var(--text-3);">zoom 5</span>
+          </div>
+          <div class="scale-box">
+            <div class="scale-line"></div>
+            <span>~500 km</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </body>
+</html>
