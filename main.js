@@ -107,7 +107,7 @@ function setLayerStatus(id, state) {
 // ============================================================
 setLayerStatus('status-shorelines', 'loading');
 
-fetch('http://localhost:5000/api/shorelines')
+fetch('gp.geojson')
   .then((res) => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
@@ -169,7 +169,7 @@ fetch('http://localhost:5000/api/shorelines')
 // ============================================================
 setLayerStatus('status-rates', 'loading');
 
-fetch('http://localhost:5000/api/rates')
+fetch('roc.geojson')
   .then((res) => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
