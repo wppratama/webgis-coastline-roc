@@ -4,8 +4,8 @@ import warnings
 # Mengabaikan peringatan minor dari library agar terminal terlihat bersih untuk screenshot Evidence
 warnings.filterwarnings("ignore") 
 
-input_gpkg = './public/data_pantai.gpkg'
-output_gpkg = './public/data_pantai_web.gpkg'
+input_gpkg = './public/coastlines_0.0.5.wpp.gpkg'
+output_gpkg = './public/coastlines_0.0.5.wpp_web.gpkg'
 
 print("=======================================================")
 print("🌊 PROSES STANDARDISASI & KONVERSI DATA SPASIAL WEBGIS")
