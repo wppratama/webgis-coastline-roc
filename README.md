@@ -62,4 +62,3 @@ Proyek ini dibangun dengan mengedepankan prinsip transparansi dan keberlanjutan.
 Wahyu P. Pratama
 Direktorat Pemetaan Rupabumi Wilayah Laut dan Pantai
 Badan Informasi Geospasial (BIG)
-"""
