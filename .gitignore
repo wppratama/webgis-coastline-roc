@@ -11,6 +11,8 @@ Thumbs.db
 # Sensitive & Local Scripts
 .env
 gas.ps1
+public/*.gpkg.
+public/indonesia_50km_tiles.geojson
 
 # Environments & Dependencies
 node_modules/
