@@ -2,7 +2,7 @@
 Write-Host "------------------------------------------" -ForegroundColor Cyan
 Write-Host " 1. Menjalankan ETL Spasial (PostGIS)..."
 Write-Host "------------------------------------------" -ForegroundColor Cyan
-python etl_coastline.py
+python .\scripts\etl_coastline.py
 
 # 2. Build & Deploy Web
 Write-Host ""

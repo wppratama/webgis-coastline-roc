@@ -1,11 +1,16 @@
 import geopandas as gpd
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 import os
 
 # --- 1. KONFIGURASI  ---
-DB_URL = "postgresql://postgres:123@localhost:5434/db_coastline"
-PATH_TILES = r"C:\Users\Pluviophile\Script\WebGIS\webgis-garis-pantai\indonesia_50km_tiles.geojson"
-INPUT_GPKG = "public/coastlines_0.0.5.wpp.gpkg"
+load_dotenv()
+
+# --- 1. KONFIGURASI DARI ENV ---
+DB_URL = os.getenv("DB_URL")
+PATH_TILES = os.getenv("PATH_TILES")
+INPUT_GPKG = os.getenv("INPUT_GPKG")
+
 engine = create_engine(DB_URL)
 
 # Fix untuk environment Windows
