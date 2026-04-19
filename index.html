@@ -129,7 +129,7 @@
       /* ── LEGEND ── */
       .legend-item { display: flex; align-items: center; gap: 9px; padding: 6px 0; }
       .legend-item:not(:last-child) { border-bottom: 1px solid var(--border); }
-      .legend-line { width: 22px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+      .legend-line { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
       .legend-info { flex: 1; }
       .legend-name { font-size: 12px; font-weight: 500; color: var(--text-1); }
       .legend-desc { font-size: 11px; color: var(--text-3); margin-top: 1px; }
@@ -183,8 +183,74 @@
       .tooltip-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
       .tooltip-value { font-size: 13px; font-weight: 500; color: var(--text-1); }
       .brand-icon img {width: 36px; height: 36px; object-fit: cover; border-radius: 50%; /* kalau logo bulat */}
+      .label-tiles-transparan {
+          background-color: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          
+          /* GANTI KE WARNA TERANG */
+          color: #00ffff; /* Warna Cyan Terang (Sangat kontras di peta satelit) */
+          /* Atau gunakan #ffffff jika ingin warna Putih Bersih */
+          
+          font-weight: 800; /* Dibuat lebih tebal */
+          font-size: 13px;  /* Sedikit diperbesar agar lebih mudah dibaca */
+          
+          /* Text Shadow diperkuat agar teks memiliki outline hitam yang tegas */
+          text-shadow: 
+              -1.5px -1.5px 0 #000, 
+              1.5px -1.5px 0 #000, 
+              -1.5px  1.5px 0 #000, 
+              1.5px  1.5px 0 #000,
+              0px 0px 5px #000; /* Tambahan efek glow hitam di belakang teks */
+      }
+            /* Menghilangkan panah kecil (segitiga) bawaan tooltip */
+      .label-tiles-transparan::before {
+        display: none !important;
+      }
+
+      /* TAMBAHAN BARU: Kelas pemicu untuk memunculkan teks */
+      .show-labels .label-tiles-transparan {opacity: 1 !important; visibility: visible !important;}
+
+      /* ── SEARCH DROPDOWN ── */
+      .search-dropdown {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        background: var(--surface);
+        border: 1px solid var(--border-md);
+        border-radius: var(--r-md);
+        overflow: hidden;
+        z-index: 9999;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        max-height: 260px;
+        overflow-y: auto;
+        display: none; /* ← default hidden */
+      }
+      .search-dropdown.visible { display: block; } /* ← tampil hanya jika ada class ini */
+      .search-item {
+        display: flex; align-items: flex-start; gap: 9px;
+        padding: 9px 13px;
+        cursor: pointer;
+        transition: background 0.12s;
+        border-bottom: 1px solid var(--border);
+      }
+      .search-item:last-child { border-bottom: none; }
+      .search-item:hover { background: var(--surface-2); }
+      .search-item-icon { font-size: 13px; margin-top: 1px; flex-shrink: 0; }
+      .search-item-text { display: flex; flex-direction: column; gap: 2px; }
+      .search-item-name { font-size: 13px; font-weight: 500; color: var(--text-1); }
+      .search-item-sub  { font-size: 11px; color: var(--text-3); line-height: 1.4; }
+      .search-loading, .search-empty {
+        padding: 12px 13px;
+        font-size: 12px;
+        color: var(--text-3);
+        text-align: center;
+      }
+      .search-item.active { background: var(--surface-2); }
+      .search-wrap { flex: 1; max-width: 360px; position: relative; }
     </style>
-    <script type="module" crossorigin src="/webgis-coastline-roc/assets/index-CCDpa8Ye.js"></script>
+    <script type="module" crossorigin src="/webgis-coastline-roc/assets/index-Diz3l9fJ.js"></script>
     <link rel="stylesheet" crossorigin href="/webgis-coastline-roc/assets/index-CIGW-MKW.css">
   </head>
   <body>
@@ -206,7 +272,8 @@
 
         <div class="search-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" placeholder="Cari lokasi, koordinat, atau nama wilayah..." />
+          <input type="text" id="search-input" placeholder="Cari lokasi, koordinat, atau nama wilayah..." autocomplete="off"/>
+          <div class="search-dropdown" id="search-dropdown"></div>
         </div>
 
         <div class="topbar-right">
@@ -214,11 +281,8 @@
             <div class="status-dot"></div>
             Server aktif
           </div>
-          <button class="tb-btn btn-ghost" onclick="document.getElementById('file-upload').click()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Unggah
           </button>
-          <input type="file" id="file-upload" style="display:none" accept=".gpkg,.geojson,.json">
+          <input type="file" id="file-upload" style="display:none" accept=".geojson,.json">
           <button class="tb-btn btn-solid">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
             Buka Data
@@ -295,6 +359,22 @@
               </div>
             </div>
           </div>
+         <div class="panel" id="panel-layer-data">
+            <div class="panel-header">
+              <div class="ph-left">
+                <div class="ph-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 3v12m0 0-3-3m3 3 3-3M5 21h14" />
+                  </svg>
+                </div>
+                <span class="ph-title">Layer Tambahan</span>
+              </div>
+              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </div>
+            <div class="panel-body"></div>
+          </div>
 
           <!-- BASEMAP -->
           <div class="panel">
@@ -351,25 +431,15 @@
                 <div class="legend-line" style="background:#ff4d4d;"></div>
                 <div class="legend-info">
                   <div class="legend-name">Abrasi</div>
-                  <div class="legend-desc">Abrasi aktif terdeteksi</div>
+                  <div class="legend-desc">Kemunduran garis pantai akibat dominasi proses erosi laut</div>
                 </div>
-                <span class="legend-tag" style="background:rgba(255,77,77,0.12);color:#ff6b6b;">Kritis</span>
-              </div>
-              <div class="legend-item">
-                <div class="legend-line" style="background:#8ba3c7;"></div>
-                <div class="legend-info">
-                  <div class="legend-name">Stabil</div>
-                  <div class="legend-desc">Tidak ada perubahan</div>
-                </div>
-                <span class="legend-tag" style="background:rgba(139,163,199,0.12);color:#00c9a7;">Aman</span></span>
               </div>
               <div class="legend-item">
                 <div class="legend-line" style="background:#00c9a7;"></div>
                 <div class="legend-info">
                   <div class="legend-name">Akresi</div>
-                  <div class="legend-desc">Akresi sedimen aktif</div>
+                  <div class="legend-desc">Perubahan garis pantai ke arah laut akibat deposisi sedimen</div>
                 </div>
-                <span class="legend-tag" style="background:rgba(0,201,167,0.12);color:#8ba3c7;">Pantau</span>
               </div>
               <!-- Gradien tahun garis pantai -->
               <div style="margin-top:4px; padding-top:8px; border-top:1px solid var(--border);">
@@ -391,11 +461,7 @@
         <div class="map-chips">
           <div class="map-chip">
             <div class="chip-dot" style="background:#00c9a7;"></div>
-            <span id="chip-basemap">Basemap: Satelit Esri</span>
-          </div>
-          <div class="map-chip">
-            <div class="chip-dot" style="background:#378ADD;"></div>
-            CRS: WGS84 / EPSG:4326
+            <span id="chip-basemap">Basemap: Satellite Imagery</span>
           </div>
         </div>
 
