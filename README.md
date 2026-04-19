@@ -1,7 +1,3 @@
-import os
-
-readme_content = """# ID-Coastline: Sistem Informasi Spasial Dinamika Garis Pantai Indonesia
-
 ## Deskripsi Proyek
 Sistem Informasi Spasial Dinamika Garis Pantai Indonesia (ID-Coastline) adalah platform berbasis WebGIS yang dirancang untuk memantau perubahan garis pantai temporal serta laju perubahannya (abrasi dan akresi). Proyek ini dikembangkan dalam rangka kegiatan Aktualisasi CPNS di Badan Informasi Geospasial (BIG) guna mengoptimalkan penyajian data hasil ekstraksi garis pantai secara interaktif dan terpusat.
 
@@ -67,6 +63,3 @@ Wahyu P. Pratama
 Direktorat Pemetaan Rupabumi Wilayah Laut dan Pantai
 Badan Informasi Geospasial (BIG)
 """
-
-with open("README.md", "w", encoding="utf-8") as f:
-    f.write(readme_content)
