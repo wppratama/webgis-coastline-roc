@@ -123,7 +123,7 @@ function setLayerStatus(id, state) {
 // ============================================================
 setLayerStatus('status-shorelines', 'loading');
 
-fetch('gp.geojson')
+fetch('Coastline.geojson')
   .then((res) => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
@@ -185,7 +185,7 @@ fetch('gp.geojson')
 // ============================================================
 setLayerStatus('status-rates', 'loading');
 
-fetch('roc.geojson')
+fetch('RatesofChange.geojson')
   .then((res) => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();

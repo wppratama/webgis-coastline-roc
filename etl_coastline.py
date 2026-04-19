@@ -2,13 +2,13 @@ import geopandas as gpd
 from sqlalchemy import create_engine, text
 import os
 
-# --- 1. KONFIGURASI (GANTI SEKALI SAJA) ---
+# --- 1. KONFIGURASI  ---
 DB_URL = "postgresql://postgres:123@localhost:5434/db_coastline"
 PATH_TILES = r"C:\Users\Pluviophile\Script\WebGIS\webgis-garis-pantai\indonesia_50km_tiles.geojson"
 INPUT_GPKG = "public/coastlines_0.0.5.wpp.gpkg"
 engine = create_engine(DB_URL)
 
-# Fix untuk environment Windows/Miniforge
+# Fix untuk environment Windows
 if 'CONDA_PREFIX' in os.environ:
     os.environ['PROJ_LIB'] = os.path.join(os.environ['CONDA_PREFIX'], 'Library', 'share', 'proj')
 
@@ -56,10 +56,10 @@ def run_real_final_etl():
         final_roc = gpd.read_postgis("SELECT * FROM tb_rates", engine, geom_col='geometry')
 
         # Simpan ke folder public dengan proyeksi WGS84 (EPSG:4326)
-        final_gp.to_crs(epsg=4326).to_file("public/gp.geojson", driver='GeoJSON')
-        final_roc.to_crs(epsg=4326).to_file("public/roc.geojson", driver='GeoJSON')
+        final_gp.to_crs(epsg=4326).to_file("public/Coastline.geojson", driver='GeoJSON')
+        final_roc.to_crs(epsg=4326).to_file("public/RatesofChange.geojson", driver='GeoJSON')
 
-        print("✨ SELESAI! Database terupdate, gp.geojson & roc.geojson sudah diperbarui.")
+        print("✨ SELESAI!  Database terupdate, Coastline.geojson & RateofChange.geojson sudah diperbarui.")
 
     except Exception as e:
         print(f"❌ Error: {e}")
