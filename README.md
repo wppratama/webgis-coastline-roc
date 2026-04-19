@@ -32,7 +32,7 @@ Mengimplementasikan sistem indeks spasial untuk membagi wilayah kerja nasional m
 
 ### Data Processing
 - Ekstraksi & Migrasi: Python (GeoPandas)
-- Format Pertukaran Data: GeoJSON (WGS84)
+- Format Data: GeoJSON (WGS84)
 
 ## Struktur Repositori
 - `/src` : Berisi logika utama aplikasi JavaScript dan komponen antarmuka.
