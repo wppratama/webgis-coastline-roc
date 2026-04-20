@@ -100,7 +100,7 @@ export class FilterPanel {
               <button class="preset-btn"
                       data-min="${Math.max(this.yearMin, this.yearMax - 9)}"
                       data-max="${this.yearMax}">
-                10 Thn Terakhir
+                10 Tahun Terakhir
               </button>
             </div>
           </div>
