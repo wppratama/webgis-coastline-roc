@@ -3,22 +3,27 @@
  * Versi final: TileLoader + FilterPanel terhubung
  */
 
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet/dist/leaflet.css';
 
 import { TileLoader } from './src/layers/tileLoader.js';
 import { setupUpload } from './src/layers/upload.js';
 import { setupBasemap } from './src/map/basemap.js';
 import { initMap } from './src/map/init.js';
+import { setupDisclaimer } from './src/ui/disclaimer.js';
 import { FilterPanel } from './src/ui/filterPanel.js';
 import { setupSearch } from './src/ui/search.js';
 import { setupSidebar } from './src/ui/sidebar.js';
 import { setupToolbar } from './src/ui/toolbar.js';
+
 
 // ── 1. Peta ────────────────────────────────────────────────
 const map = initMap('map', { center: [-2.5, 118.0], zoom: 5 });
 
 // ── 2. Basemap ─────────────────────────────────────────────
 setupBasemap(map);
+setupSearch(map);
 
 // ── 3. Tile loader ─────────────────────────────────────────
 const tileLoader = new TileLoader(map, { yearMin: 1985, yearMax: 2025 });
@@ -86,3 +91,12 @@ map.on('zoomend', () => {
   if (el) el.textContent = `zoom ${map.getZoom()}`;
   map.getContainer().classList.toggle('show-labels', map.getZoom() >= 8);
 });
+
+// ── 10. Disclaimer Text ─────────────────────────────────
+setupDisclaimer();
+document.getElementById('btn-reopen-disclaimer')
+  ?.addEventListener('click', () => {
+    // Hapus flag localStorage agar popup muncul lagi
+    localStorage.removeItem('webgis_disclaimer_accepted');
+    setupDisclaimer();
+  });

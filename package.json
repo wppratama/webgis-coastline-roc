@@ -18,6 +18,9 @@
     "better-sqlite3": "^12.8.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "leaflet": "^1.9.4"
+    "leaflet": "^1.9.4",
+    "leaflet.markercluster": "^1.5.3",
+    "pmtiles": "^4.4.1",
+    "protomaps-leaflet": "^5.1.0"
   }
 }

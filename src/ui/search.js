@@ -1,7 +1,6 @@
 /**
- * src/ui/search.js
- * Geocoder Nominatim — search lokasi di Indonesia.
- * Ekstrak langsung dari main.js lama, dibungkus jadi fungsi export.
+ * src/ui/search.js — fix untuk index.html baru
+ * Perubahan: selector input & dropdown sudah pakai ID yang benar
  */
 
 import L from 'leaflet';
@@ -9,13 +8,21 @@ import L from 'leaflet';
 export function setupSearch(map) {
   const searchInput    = document.getElementById('search-input');
   const searchDropdown = document.getElementById('search-dropdown');
-  if (!searchInput || !searchDropdown) return;
+  if (!searchInput || !searchDropdown) {
+    console.warn('Search: elemen tidak ditemukan');
+    return;
+  }
 
   let searchTimeout = null;
   let searchMarker  = null;
 
   function clearMarker() {
     if (searchMarker) { map.removeLayer(searchMarker); searchMarker = null; }
+  }
+
+  function hideDropdown() {
+    searchDropdown.innerHTML = '';
+    searchDropdown.classList.remove('visible');
   }
 
   function renderDropdown(items) {
@@ -27,8 +34,9 @@ export function setupSearch(map) {
     }
 
     const typeIcon = {
-      city:'🏙️', town:'🏘️', village:'🏡', administrative:'📍',
-      island:'🏝️', bay:'🌊', river:'🏞️', peak:'⛰️', suburb:'🏘️',
+      city:'🏙️', town:'🏘️', village:'🏡',
+      administrative:'📍', island:'🏝️',
+      bay:'🌊', river:'🏞️', peak:'⛰️', suburb:'🏘️',
     };
 
     items.forEach(item => {
@@ -50,22 +58,24 @@ export function setupSearch(map) {
         clearMarker();
 
         searchMarker = L.circleMarker([lat, lon], {
-          radius: 8, fillColor: '#1a7aff', color: '#fff',
-          weight: 2, opacity: 1, fillOpacity: 1,
+          radius: 8, fillColor: '#3b82f6',
+          color: '#fff', weight: 2,
+          opacity: 1, fillOpacity: 1,
         }).addTo(map);
 
         searchMarker.bindPopup(
           `<div class="gis-popup">
-            <div class="popup-header" style="border-color:#1a7aff">
-              <span class="popup-icon">${icon}</span>
-              <span class="popup-title">${name}</span>
-            </div>
-            <table class="popup-table">
-              <tr><td class="pt-label">Tipe</td><td class="pt-val">${item.type ?? '-'}</td></tr>
-              <tr><td class="pt-label">Koordinat</td>
-                  <td class="pt-val">${lat.toFixed(5)}, ${lon.toFixed(5)}</td></tr>
-            </table>
-          </div>`
+             <div class="popup-header" style="border-color:#3b82f6">
+               <span class="popup-icon">${icon}</span>
+               <span class="popup-title">${name}</span>
+             </div>
+             <table class="popup-table">
+               <tr><td class="pt-label">Tipe</td>
+                   <td class="pt-val">${item.type ?? '-'}</td></tr>
+               <tr><td class="pt-label">Koordinat</td>
+                   <td class="pt-val">${lat.toFixed(5)}, ${lon.toFixed(5)}</td></tr>
+             </table>
+           </div>`
         ).openPopup();
 
         if (item.boundingbox) {
@@ -76,8 +86,7 @@ export function setupSearch(map) {
         }
 
         searchInput.value = name;
-        searchDropdown.innerHTML = '';
-        searchDropdown.classList.remove('visible');
+        hideDropdown();
       });
 
       searchDropdown.appendChild(row);
@@ -87,11 +96,8 @@ export function setupSearch(map) {
   }
 
   async function doSearch(query) {
-    if (query.length < 4) {
-      searchDropdown.innerHTML = '';
-      searchDropdown.classList.remove('visible');
-      return;
-    }
+    if (query.length < 3) { hideDropdown(); return; }
+
     searchDropdown.innerHTML = '<div class="search-loading">🔍 Mencari...</div>';
     searchDropdown.classList.add('visible');
 
@@ -103,29 +109,32 @@ export function setupSearch(map) {
       url.searchParams.set('limit', '7');
       url.searchParams.set('countrycodes', 'id');
 
-      const res  = await fetch(url.toString(), { headers: { 'Accept-Language': 'id' } });
+      const res  = await fetch(url.toString(), {
+        headers: { 'Accept-Language': 'id,en' }
+      });
       const data = await res.json();
       renderDropdown(data);
-    } catch {
-      searchDropdown.innerHTML = '<div class="search-empty">⚠️ Gagal menghubungi server pencarian</div>';
+    } catch (err) {
+      console.error('Search error:', err);
+      searchDropdown.innerHTML =
+        '<div class="search-empty">⚠️ Gagal menghubungi server pencarian</div>';
     }
   }
 
-  // Event listeners
+  // Input dengan debounce 500ms
   searchInput.addEventListener('input', e => {
     clearTimeout(searchTimeout);
     const q = e.target.value.trim();
-    if (!q) { searchDropdown.innerHTML = ''; searchDropdown.classList.remove('visible'); clearMarker(); return; }
-    searchTimeout = setTimeout(() => doSearch(q), 600);
+    if (!q) { hideDropdown(); clearMarker(); return; }
+    searchTimeout = setTimeout(() => doSearch(q), 500);
   });
 
+  // Tutup saat klik di luar area search
   document.addEventListener('click', e => {
-    if (!e.target.closest('.search-wrap')) {
-      searchDropdown.innerHTML = '';
-      searchDropdown.classList.remove('visible');
-    }
+    if (!e.target.closest('.search-wrap')) hideDropdown();
   });
 
+  // Navigasi keyboard
   searchInput.addEventListener('keydown', e => {
     const items  = [...searchDropdown.querySelectorAll('.search-item')];
     const active = searchDropdown.querySelector('.search-item.active');
@@ -142,8 +151,7 @@ export function setupSearch(map) {
     } else if (e.key === 'Enter') {
       active?.click();
     } else if (e.key === 'Escape') {
-      searchDropdown.innerHTML = '';
-      searchDropdown.classList.remove('visible');
+      hideDropdown();
       searchInput.blur();
     }
   });

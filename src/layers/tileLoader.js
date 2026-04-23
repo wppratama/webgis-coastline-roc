@@ -1,16 +1,30 @@
 /**
- * src/layers/tileLoader.js  — VERSI FIX
- * ─────────────────────────────────────────────────────────
- * Fix tile_id format: mendukung "72,35" (string dengan koma)
- * Fix: apply filter dari FilterPanel saat render & re-render
+ * src/layers/tileLoader.js — STABLE
+ * ──────────────────────────────────────────────────────────
+ * Arsitektur: load-sekali, cache selamanya (tidak ada culling).
+ * Fitur:
+ * ✔ Canvas renderer
+ * ✔ Marker clustering (disable di zoom 16)
+ * ✔ Temporal thinning dinamis (Zoom 16+ = Full, < 16 = 1 Garis Terbaru)
+ * ✔ FilterPanel integration
+ * ✔ Viewport-based Stats (Aktif hanya di Zoom >= 14, menghitung area di layar saja)
  */
 
 import L from 'leaflet';
+import 'leaflet.markercluster';
 import { setLayerStatus, updateStatCard } from '../ui/stats.js';
 import { getWarnaTahun } from '../utils/color.js';
 import { formatLaju } from '../utils/format.js';
 
 const BASE_URL = './tiles';
+
+// Certainty → style garis
+const CERT_STYLE = {
+  'good':             { dashArray: null,  weight: 2,   opacity: 0.9  },
+  'insufficient data':{ dashArray: '8 5', weight: 1.5, opacity: 0.7  },
+  'unstable data':    { dashArray: '2 5', weight: 1.5, opacity: 0.55 },
+};
+const getCertStyle = c => CERT_STYLE[c] ?? CERT_STYLE['good'];
 
 export class TileLoader {
   constructor(map, options = {}) {
@@ -21,19 +35,19 @@ export class TileLoader {
     };
 
     this._ensurePanes();
+    this._canvas = L.canvas({ padding: 0.5 });
 
     this.shorelinesGroup = L.layerGroup().addTo(map);
-    this.ratesGroup      = L.layerGroup();
+    this.clusterGroup    = this._buildClusterGroup();
+    this.ratesGroup      = this.clusterGroup;
 
     this._manifest     = null;
     this._loadedTiles  = new Set();
     this._pendingTiles = new Set();
 
-    // Semua fitur yang sudah dirender — untuk re-filter tanpa re-fetch
-    this._shorelineLayers = [];  // array of { layer, year }
-    this._rateLayers      = [];  // array of { layer, rate, isErosi }
+    this._shorelineLayers = [];   // { layer, year, certainty }
+    this._rateLayers      = [];   // { layer, rate, isErosi, isAkresi, isStabil }
 
-    // Filter aktif (diupdate dari FilterPanel)
     this._filter = {
       yearMin:    options.yearMin ?? 1985,
       yearMax:    options.yearMax ?? 2025,
@@ -42,11 +56,6 @@ export class TileLoader {
       showStabil: true,
       minRate:    0,
     };
-
-    // Stat counter
-    this._countShoreline = 0;
-    this._countErosi     = 0;
-    this._countAkresi    = 0;
   }
 
   // ── PUBLIC API ────────────────────────────────────────────
@@ -55,48 +64,91 @@ export class TileLoader {
     this._manifest = await this._fetchManifest();
     if (!this._manifest) return;
 
-    // Update tile saat peta berhenti bergerak
-    this.map.on('moveend', () => this._updateVisibleTiles());
+    // Trigger map events
+    this.map.on('moveend', () => {
+      this._updateVisibleTiles();
+      this._calculateViewportStats();
+    });
 
-    // Load tile awal
+    this.map.on('zoomend', () => {
+      this._applyFilterToLoaded();
+    });
+
     await this._updateVisibleTiles();
+    this._calculateViewportStats();
   }
 
-  /**
-   * Terima filter dari FilterPanel dan terapkan ke semua layer.
-   * Tile yang sudah dimuat: langsung update opacity tanpa re-fetch.
-   * Tile yang belum dimuat: akan terapkan filter saat render nanti.
-   */
   applyFilter(filter) {
-    this._filter = {
-      yearMin:    filter.yearMin    ?? this._filter.yearMin,
-      yearMax:    filter.yearMax    ?? this._filter.yearMax,
-      showAbrasi: filter.showAbrasi ?? true,
-      showAkresi: filter.showAkresi ?? true,
-      showStabil: filter.showStabil ?? true,
-      minRate:    filter.minRate    ?? 0,
-    };
-
-    // Re-apply ke semua layer yang sudah ada di memori — O(n) tapi cepat
+    this._filter = { ...this._filter, ...filter };
     this._applyFilterToLoaded();
   }
 
   setShorelinesOpacity(opacity) {
     this._shorelineLayers.forEach(({ layer }) => {
-      if (layer.setStyle) layer.setStyle({ opacity });
+      layer.setStyle?.({ opacity });
     });
   }
 
-  // ── INTERNAL: TILE MANAGEMENT ────────────────────────────
+  // ── TILE MANAGEMENT ──────────────────────────────────────
 
-  _ensurePanes() {
-    if (!this.map.getPane('lapisGaris')) {
-      this.map.createPane('lapisGaris');
-      this.map.getPane('lapisGaris').style.zIndex = 400;
+  async _updateVisibleTiles() {
+    if (!this._manifest) return;
+
+    if (this.map.getZoom() < 6) return; 
+
+    const bounds = this.map.getBounds();
+
+    const toLoad = this._manifest.tiles.filter(id => {
+      if (this._loadedTiles.has(id) || this._pendingTiles.has(id)) return false;
+      const bb = this._manifest.tile_bounds[String(id)];
+      if (!bb) return false;
+      const [minx, miny, maxx, maxy] = bb;
+      return bounds.getWest() <= maxx && bounds.getEast() >= minx &&
+             bounds.getSouth() <= maxy && bounds.getNorth() >= miny;
+    });
+
+    if (!toLoad.length) return;
+
+    setLayerStatus('status-shorelines', 'loading');
+    setLayerStatus('status-rates',      'loading');
+    toLoad.forEach(id => this._pendingTiles.add(id));
+
+    const chunks = [];
+    for (let i = 0; i < toLoad.length; i += 2) {
+      chunks.push(toLoad.slice(i, i + 2));
     }
-    if (!this.map.getPane('lapisTitik')) {
-      this.map.createPane('lapisTitik');
-      this.map.getPane('lapisTitik').style.zIndex = 600;
+    for (const chunk of chunks) {
+      await Promise.allSettled(chunk.map(id => this._loadOneTile(id)));
+    }
+  }
+
+  async _loadOneTile(tileId) {
+    const tid = String(tileId);
+    try {
+      const [slRes, rtRes] = await Promise.allSettled([
+        fetch(`${BASE_URL}/shorelines/shorelines_tile_${tid}.geojson`),
+        fetch(`${BASE_URL}/rates/rates_tile_${tid}.geojson`),
+      ]);
+
+      if (slRes.status === 'fulfilled' && slRes.value.ok) {
+        this._renderShorelines(await slRes.value.json());
+      }
+      if (rtRes.status === 'fulfilled' && rtRes.value.ok) {
+        this._renderRates(await rtRes.value.json());
+      }
+
+      this._loadedTiles.add(tileId);
+      setLayerStatus('status-shorelines', 'done');
+      setLayerStatus('status-rates',      'done');
+      
+      // Update stats setiap ada tile baru yang berhasil di-render
+      this._calculateViewportStats();
+
+    } catch (err) {
+      console.error(`Tile ${tileId} gagal:`, err);
+      setLayerStatus('status-shorelines', 'error');
+    } finally {
+      this._pendingTiles.delete(tileId);
     }
   }
 
@@ -105,125 +157,69 @@ export class TileLoader {
       const res = await fetch(`${BASE_URL}/shorelines/shorelines_manifest.json`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const m = await res.json();
-
-      // Normalisasi: tile_id bisa berupa number ATAU string "72,35"
-      // Simpan sebagai string agar konsisten
-      m.tiles = m.tiles.map(t => String(t));
-      const normalBounds = {};
-      Object.entries(m.tile_bounds ?? {}).forEach(([k, v]) => {
-        normalBounds[String(k)] = v;
-      });
-      m.tile_bounds = normalBounds;
-
+      m.tiles = m.tiles.map(String);
+      const nb = {};
+      Object.entries(m.tile_bounds ?? {}).forEach(([k, v]) => { nb[String(k)] = v; });
+      m.tile_bounds = nb;
       return m;
     } catch (err) {
-      console.error('Gagal memuat manifest:', err);
+      console.error('Manifest gagal:', err);
       setLayerStatus('status-shorelines', 'error');
       return null;
     }
   }
 
-  _getVisibleTileIds() {
-    if (!this._manifest) return [];
-    const b = this.map.getBounds();
-
-    return this._manifest.tiles.filter(tileId => {
-      const bb = this._manifest.tile_bounds[tileId];
-      if (!bb) return false;
-      const [minx, miny, maxx, maxy] = bb;
-      return b.getWest()  <= maxx &&
-             b.getEast()  >= minx &&
-             b.getSouth() <= maxy &&
-             b.getNorth() >= miny;
-    });
-  }
-
-  async _updateVisibleTiles() {
-    const visible = this._getVisibleTileIds();
-    const toLoad  = visible.filter(
-      id => !this._loadedTiles.has(id) && !this._pendingTiles.has(id)
-    );
-    if (!toLoad.length) return;
-
-    setLayerStatus('status-shorelines', 'loading');
-    setLayerStatus('status-rates',      'loading');
-
-    toLoad.forEach(id => this._pendingTiles.add(id));
-
-    await Promise.allSettled(toLoad.map(id => this._loadOneTile(id)));
-  }
-
-  async _loadOneTile(tileId) {
-    // tile_id "72,35" → nama file shorelines_tile_72,35.geojson
-    const tidStr = String(tileId);
-
-    try {
-      const [slRes, rtRes] = await Promise.allSettled([
-        fetch(`${BASE_URL}/shorelines/shorelines_tile_${tidStr}.geojson`),
-        fetch(`${BASE_URL}/rates/rates_tile_${tidStr}.geojson`),
-      ]);
-
-      if (slRes.status === 'fulfilled' && slRes.value.ok) {
-        const data = await slRes.value.json();
-        this._renderShorelines(data);
-      }
-
-      if (rtRes.status === 'fulfilled' && rtRes.value.ok) {
-        const data = await rtRes.value.json();
-        this._renderRates(data);
-      }
-
-      this._loadedTiles.add(tileId);
-      setLayerStatus('status-shorelines', 'done');
-      setLayerStatus('status-rates',      'done');
-      updateStatCard('stat-shoreline-count', this._countShoreline);
-      updateStatCard('stat-erosi-count',     this._countErosi);
-      updateStatCard('stat-akresi-count',    this._countAkresi);
-
-    } catch (err) {
-      console.error(`Gagal memuat tile ${tileId}:`, err);
-      setLayerStatus('status-shorelines', 'error');
-    } finally {
-      this._pendingTiles.delete(tileId);
-    }
-  }
-
-  // ── RENDER ───────────────────────────────────────────────
+  // ── RENDER: SHORELINES ───────────────────────────────────
 
   _renderShorelines(data) {
+    const zoom = this.map.getZoom();
+
     L.geoJSON(data, {
-      pane:  'lapisGaris',
+      pane:     'lapisGaris',
+      renderer: this._canvas,
       style: feature => {
-        const year  = feature.properties?.year ?? null;
-        const warna = getWarnaTahun(year);
+        const year      = feature.properties?.year ?? null;
+        const certainty = feature.properties?.certainty ?? 'good';
+        const cs        = getCertStyle(certainty);
+        const isZoom16  = zoom >= 16;
+        const isLatest  = parseInt(year) === parseInt(this._filter.yearMax);
+        const visible   = this._visibleYear(year) && (isZoom16 || isLatest);
+
         return {
-          color:   warna,
-          weight:  2,
-          opacity: this._visibleYear(year) ? 0.9 : 0,
+          color:     getWarnaTahun(year),
+          weight:    cs.weight,
+          opacity:   visible ? cs.opacity : 0,
+          dashArray: cs.dashArray,
         };
       },
       onEachFeature: (feature, layer) => {
-        const tahun = feature.properties?.year ?? '-';
-        const warna = getWarnaTahun(tahun);
+        const tahun     = feature.properties?.year      ?? '-';
+        const certainty = feature.properties?.certainty ?? 'good';
+        const warna     = getWarnaTahun(tahun);
+        const cs        = getCertStyle(certainty);
 
-        // Simpan referensi untuk re-filter
-        this._shorelineLayers.push({ layer, year: tahun });
-        this._countShoreline++;
+        const certLabel = {
+          'good':             '✔ Good',
+          'insufficient data':'⚠ Insufficient Data',
+          'unstable data':    '✘ Unstable Data',
+        }[certainty] ?? certainty;
+
+        this._shorelineLayers.push({ layer, year: tahun, certainty });
 
         layer.bindTooltip(
           `<div class="gis-tooltip">
-             <span class="tooltip-label">Tahun</span>
+             <span class="tooltip-label">Tahun · ${certLabel}</span>
              <span class="tooltip-value">${tahun}</span>
            </div>`,
           { sticky: true, direction: 'auto', className: 'gis-tooltip-wrap' }
         );
 
         layer.on('mouseover', function () {
-          this.setStyle({ weight: 4, color: '#ffffff' });
+          this.setStyle({ weight: cs.weight + 2, color: '#ffffff' });
           this.bringToFront();
         });
         layer.on('mouseout', function () {
-          this.setStyle({ weight: 2, color: warna });
+          this.setStyle({ weight: cs.weight, color: warna });
         });
 
         layer.bindPopup(
@@ -235,6 +231,8 @@ export class TileLoader {
              <table class="popup-table">
                <tr><td class="pt-label">Tahun</td>
                    <td class="pt-val">${tahun}</td></tr>
+               <tr><td class="pt-label">Kualitas</td>
+                   <td class="pt-val">${certLabel}</td></tr>
              </table>
            </div>`
         );
@@ -242,7 +240,11 @@ export class TileLoader {
     }).addTo(this.shorelinesGroup);
   }
 
+  // ── RENDER: RATES ────────────────────────────────────────
+
   _renderRates(data) {
+    const markers = [];
+
     L.geoJSON(data, {
       pointToLayer: (feature, latlng) => {
         const laju    = feature.properties?.rate_time ?? 0;
@@ -250,28 +252,34 @@ export class TileLoader {
         const isStbl  = Math.abs(laju) < 0.1;
         let warna     = '#8ba3c7';
 
-        if (!isStbl) {
-          if (isErosi) { warna = '#ff4d4d'; this._countErosi++; }
-          else         { warna = '#00c9a7'; this._countAkresi++; }
-        }
+        if (!isStbl) warna = isErosi ? '#ff4d4d' : '#00c9a7';
 
         const marker = L.circleMarker(latlng, {
-          pane: 'lapisTitik', radius: 4,
-          fillColor: warna, color: 'rgba(255,255,255,0.6)',
-          weight: 1, opacity: 1, fillOpacity: 1,
+          radius:      5,
+          fillColor:   warna,
+          color:       'rgba(255,255,255,0.7)',
+          weight:      1,
+          opacity:     1,
+          fillOpacity: 1,
+          _isErosi:    isErosi && !isStbl,
+          _isAkresi:   !isErosi && !isStbl,
+          _isStabil:   isStbl,
+          _rate:       laju,
         });
 
-        // Simpan untuk re-filter
         this._rateLayers.push({
-          layer: marker, rate: laju,
-          isErosi, isAkresi: !isErosi && !isStbl, isStabil: isStbl,
+          layer:    marker,
+          rate:     laju,
+          isErosi:  isErosi && !isStbl,
+          isAkresi: !isErosi && !isStbl,
+          isStabil: isStbl,
         });
 
-        // Apply filter saat ini
-        if (!this._visibleRate(laju, isErosi, !isErosi && !isStbl, isStbl)) {
+        if (!this._visibleRate(laju, isErosi && !isStbl, !isErosi && !isStbl, isStbl)) {
           marker.setStyle({ opacity: 0, fillOpacity: 0 });
         }
 
+        markers.push(marker);
         return marker;
       },
       onEachFeature: (feature, layer) => {
@@ -283,9 +291,7 @@ export class TileLoader {
         layer.bindTooltip(
           `<div class="gis-tooltip">
              <span class="tooltip-label">${status}</span>
-             <span class="tooltip-value" style="color:${warna}">
-               ${formatLaju(laju)} m/th
-             </span>
+             <span class="tooltip-value" style="color:${warna}">${formatLaju(laju)} m/th</span>
            </div>`,
           { sticky: true, direction: 'auto', className: 'gis-tooltip-wrap' }
         );
@@ -298,20 +304,75 @@ export class TileLoader {
                <span class="popup-badge ${isErosi ? 'badge-erosi' : 'badge-akresi'}">${status}</span>
              </div>
              <table class="popup-table">
-               <tr><td class="pt-label">Status</td>
-                   <td class="pt-val">${status}</td></tr>
-               <tr><td class="pt-label">Laju</td>
-                   <td class="pt-val" style="color:${warna};font-weight:600;">
-                     ${formatLaju(laju)} m/th
-                   </td></tr>
+               <tr><td class="pt-label">Status</td><td class="pt-val">${status}</td></tr>
+               <tr><td class="pt-label">Laju</td><td class="pt-val" style="color:${warna};font-weight:600;">${formatLaju(laju)} m/th</td></tr>
              </table>
            </div>`
         );
       },
-    }).addTo(this.ratesGroup);
+    });
+
+    this.clusterGroup.addLayers(markers);
   }
 
-  // ── FILTER HELPERS ───────────────────────────────────────
+  // ── CLUSTER GROUP ────────────────────────────────────────
+
+  // ── CLUSTER GROUP ────────────────────────────────────────
+
+  _buildClusterGroup() {
+    const group = L.markerClusterGroup({
+      maxClusterRadius: z => z<=5?100 : z<=7?80 : z<=9?60 : z<=11?45 : z<=15?35 : 10,
+      disableClusteringAtZoom: 16,
+      spiderfyOnMaxZoom:   true,
+      showCoverageOnHover: false,
+      chunkedLoading:      true,
+      animate:             true,
+      
+      iconCreateFunction: cluster => {
+        const ms    = cluster.getAllChildMarkers();
+        const total = ms.length;
+        const ratio = ms.filter(m => m.options._isErosi).length / total;
+        let bg, border;
+        
+        if      (ratio > 0.6) { bg = '#ff4d4d'; border = '#cc2222'; }
+        else if (ratio < 0.4) { bg = '#00c9a7'; border = '#009980'; }
+        else                  { bg = '#f5a623'; border = '#c47a00'; }
+        
+        // 1. UKURAN DIPERKECIL (Sebelumnya: 32, 38, 44, 50)
+        const sz = total < 10 ? 24 : total < 50 ? 28 : total < 200 ? 34 : 40;
+        
+        // 2. FONT DISESUAIKAN agar muat di lingkaran yang lebih kecil
+        const fontSize = sz < 30 ? 10 : 11;
+
+        return L.divIcon({
+          html: `<div style="
+            width:${sz}px;
+            height:${sz}px;
+            border-radius:50%;
+            background:${bg};
+            border: 1.5px solid ${border}; /* Border ditipiskan */
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:${fontSize}px;
+            font-weight:700;
+            color:#fff;
+            font-family:'DM Sans',sans-serif;
+            box-shadow:0 2px 5px rgba(0,0,0,0.3);
+            opacity: 0.85; /* 3. TRANSPARANSI ditambahkan agar garis bawah terlihat */
+            ">${total}</div>`,
+          className:  '',
+          iconSize:   [sz, sz],
+          iconAnchor: [sz/2, sz/2],
+        });
+      },
+    });
+
+    group.addTo(this.map);
+    return group;
+  }
+
+  // ── FILTER & VISIBILITY ──────────────────────────────────
 
   _visibleYear(year) {
     const y = parseInt(year);
@@ -320,29 +381,131 @@ export class TileLoader {
   }
 
   _visibleRate(rate, isErosi, isAkresi, isStabil) {
-    const { showAbrasi, showAkresi, showStabil, minRate } = this._filter;
-    if (isErosi  && !showAbrasi) return false;
-    if (isAkresi && !showAkresi) return false;
-    if (isStabil && !showStabil) return false;
-    if (Math.abs(rate) < minRate) return false;
+    if (isErosi  && !this._filter.showAbrasi) return false;
+    if (isAkresi && !this._filter.showAkresi) return false;
+    if (isStabil && !this._filter.showStabil) return false;
+    if (Math.abs(rate) < (this._filter.minRate ?? 0)) return false;
     return true;
   }
 
-  /** Re-apply filter ke semua layer yang sudah dirender */
   _applyFilterToLoaded() {
-    // Shorelines — hanya ubah opacity
-    this._shorelineLayers.forEach(({ layer, year }) => {
+    const zoom = this.map.getZoom();
+    const isZoom16 = zoom >= 16;
+
+    this._shorelineLayers.forEach(({ layer, year, certainty }) => {
       if (!layer.setStyle) return;
-      layer.setStyle({ opacity: this._visibleYear(year) ? 0.9 : 0 });
+      const cs       = getCertStyle(certainty);
+      const isLatest = parseInt(year) === parseInt(this._filter.yearMax);
+      const visible  = this._visibleYear(year) && (isZoom16 || isLatest);
+      
+      layer.setStyle({
+        opacity:   visible ? cs.opacity : 0,
+        dashArray: cs.dashArray,
+        weight:    cs.weight,
+      });
     });
 
-    // Rate markers
     this._rateLayers.forEach(({ layer, rate, isErosi, isAkresi, isStabil }) => {
       const visible = this._visibleRate(rate, isErosi, isAkresi, isStabil);
-      layer.setStyle({
+      layer.setStyle?.({
         opacity:     visible ? 1 : 0,
         fillOpacity: visible ? 1 : 0,
       });
     });
+
+    this._calculateViewportStats();
+  }
+
+  // ── VIEWPORT STATS (RINGAN & DINAMIS) ────────────────────
+
+  _calculateViewportStats() {
+    const zoom = this.map.getZoom();
+
+    // 1. Matikan kalkulasi jika zoom di bawah 14
+    if (zoom < 14) {
+      updateStatCard('stat-shoreline-count', '—');
+      updateStatCard('stat-erosi-count',     '—');
+      updateStatCard('stat-akresi-count',    '—');
+      updateStatCard('stat-length',          '—');
+      
+      const el = document.getElementById('stat-avg-rate');
+      if (el) { 
+        el.textContent = '—'; 
+        el.style.color = 'inherit'; 
+      }
+      return;
+    }
+
+    // 2. Persiapan Hitung
+    const bounds = this.map.getBounds();
+    let totalLenMeters = 0;
+    let sumRate = 0, countRate = 0;
+    let countErosi = 0, countAkresi = 0, countShoreline = 0;
+
+    // 3. Looping Garis Pantai yang masuk layar
+    this._shorelineLayers.forEach(({ layer, year }) => {
+      const isLatest = parseInt(year) === parseInt(this._filter.yearMax);
+      const visible  = this._visibleYear(year) && (zoom >= 16 || isLatest);
+      if (!visible) return;
+
+      if (layer.getBounds && bounds.intersects(layer.getBounds())) {
+        countShoreline++;
+
+        // Hitung panjang secara presisi pakai fungsi Leaflet (hanya hitung ruas yang bersinggungan di layar)
+        const latlngs = layer.getLatLngs();
+        const lines = Array.isArray(latlngs[0]) ? latlngs : [latlngs]; // Handle MutiLineString vs LineString
+
+        lines.forEach(line => {
+          for (let i = 1; i < line.length; i++) {
+            const p1 = line[i-1];
+            const p2 = line[i];
+            if (bounds.contains(p1) || bounds.contains(p2)) {
+              totalLenMeters += p1.distanceTo(p2);
+            }
+          }
+        });
+      }
+    });
+
+    // 4. Looping Titik Rates yang masuk layar
+    this._rateLayers.forEach(({ layer, rate, isErosi, isAkresi, isStabil }) => {
+      if (!this._visibleRate(rate, isErosi, isAkresi, isStabil)) return;
+
+      if (bounds.contains(layer.getLatLng())) {
+        sumRate += rate;
+        countRate++;
+        if (isErosi) countErosi++;
+        if (isAkresi) countAkresi++;
+      }
+    });
+
+    // 5. Update UI Dashboard
+    const lenKm = (totalLenMeters / 1000).toFixed(2); // Dibuat format desimal agar lebih presisi di layar kecil
+    updateStatCard('stat-shoreline-count', countShoreline);
+    updateStatCard('stat-erosi-count',     countErosi);
+    updateStatCard('stat-akresi-count',    countAkresi);
+    updateStatCard('stat-length',          parseFloat(lenKm) > 0 ? lenKm : '—');
+
+    const avgRate = countRate > 0 ? (sumRate / countRate).toFixed(2) : '—';
+    const elRate = document.getElementById('stat-avg-rate');
+    if (elRate) {
+      elRate.textContent = avgRate;
+      elRate.style.color = avgRate !== '—' 
+        ? (parseFloat(avgRate) < 0 ? '#ff4d4d' : '#00c9a7') 
+        : 'inherit';
+    }
+  }
+
+  // ── SETUP PANES ──────────────────────────────────────────
+
+  _ensurePanes() {
+    if (!this.map.getPane('lapisGaris')) {
+      this.map.createPane('lapisGaris');
+      this.map.getPane('lapisGaris').style.zIndex = 400;
+    }
+    if (!this.map.getPane('lapisTitik')) {
+      this.map.createPane('lapisTitik');
+      this.map.getPane('lapisTitik').style.zIndex = 600;
+    }
   }
 }

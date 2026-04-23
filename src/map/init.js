@@ -1,41 +1,45 @@
 /**
- * src/map/init.js
- * Inisialisasi objek L.map dengan konfigurasi standar project.
- * Dipisah agar mudah di-mock saat testing.
+ * src/map/init.js — v2
+ * Perubahan:
+ *  - maxZoom: 16 (cegah zoom ke area basemap kosong)
+ *  - minZoom: 4
+ *  - Tambah maxBounds Indonesia agar peta tidak geser terlalu jauh
  */
 
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-/**
- * @param {string} containerId  — id elemen HTML tempat peta dirender
- * @param {object} opts         — override default (center, zoom, dsb.)
- * @returns {L.Map}
- */
 export function initMap(containerId, opts = {}) {
   const map = L.map(containerId, {
-    zoomControl:        false,   // kita buat toolbar sendiri
-    attributionControl: false,   // kita buat sendiri di bawah
+    zoomControl:        false,
+    attributionControl: false,
     center: opts.center ?? [-2.5, 118.0],
     zoom:   opts.zoom   ?? 5,
-    ...opts,
+    minZoom: 4,
+    maxZoom: 16,   // ← Esri & Google masih bagus sampai sini untuk Indonesia
+
+    // Batasi pan ke sekitar Indonesia + buffer
+    maxBounds: L.latLngBounds(
+      L.latLng(-15, 90),   // SW — bawah kiri
+      L.latLng(12,  145)   // NE — atas kanan
+    ),
+    maxBoundsViscosity: 0.85,  // 0=bebas, 1=hard lock
   });
 
-  // Attribution kustom pojok kanan bawah
   L.control.attribution({
     position: 'bottomright',
     prefix:   false,
   }).addTo(map);
 
-  // Pane z-index — didefinisikan di sini agar tersedia sebelum layer apapun ditambah
   _createPane(map, 'lapisGaris', 400);
   _createPane(map, 'lapisTitik', 600);
 
-  // Label di atas semua layer (zoom >= 8)
   map.on('zoomend', () => {
     map.getContainer().classList.toggle('show-labels', map.getZoom() >= 8);
+    _updateZoomUI(map);
   });
-  // Set saat init
+
+  _updateZoomUI(map);
   map.getContainer().classList.toggle('show-labels', map.getZoom() >= 8);
 
   return map;
@@ -46,4 +50,9 @@ function _createPane(map, name, zIndex) {
     map.createPane(name);
     map.getPane(name).style.zIndex = String(zIndex);
   }
+}
+
+function _updateZoomUI(map) {
+  const el = document.getElementById('zoom-level');
+  if (el) el.textContent = `zoom ${map.getZoom()}`;
 }

@@ -123,7 +123,7 @@ export class FilterPanel {
             </div>
             <!-- Quick jump: pilih tahun via select -->
             <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-              <span style="font-size:11px;color:var(--text-3);">Lompat ke:</span>
+              <span style="font-size:11px;color:var(--text-3);">Pilih Tahun:</span>
               <select id="fp-single-select" class="speed-select" style="flex:1;">
                 ${Array.from(
                   { length: this.yearMax - this.yearMin + 1 },
