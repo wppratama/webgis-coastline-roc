@@ -249,9 +249,137 @@
       }
       .search-item.active { background: var(--surface-2); }
       .search-wrap { flex: 1; max-width: 360px; position: relative; }
+
+      /* ── Sidebar Footer ─────────────────────────────────────── */
+      .sb-footer {
+        flex-shrink: 0;
+        padding: 10px 14px 12px;
+        border-top: 1px solid var(--border);
+        background: var(--navy-mid);
+
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .sb-footer-text {
+        flex: 1;
+        font-size: 10px;
+        color: var(--text-3);
+        line-height: 1.65;
+        font-family: var(--font);
+      }
+
+      .sb-footer-link {
+        color: var(--accent);
+        text-decoration: none;
+        border-bottom: 1px solid rgba(26,122,255,0.3);
+        transition: border-color 0.15s;
+      }
+      .sb-footer-link:hover {
+        border-color: var(--accent);
+      }
+
+      .sb-footer-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-3);
+        font-size: 10px;
+        font-family: var(--font);
+        cursor: pointer;
+        flex-shrink: 0;
+        margin-top: 1px;
+        transition: all 0.12s;
+        white-space: nowrap;
+      }
+      .sb-footer-btn:hover {
+        background: var(--surface-2);
+        color: var(--text-1);
+      }
+
+      /* ══════════════════════════════════════════════════════
+        SIDEBAR TAB SYSTEM
+        Tambahkan ke style.css atau <style> di index.html
+        ══════════════════════════════════════════════════════ */
+
+      /* Override sidebar layout */
+      #sidebar {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      /* ── Tab Nav ── */
+      .sb-tabs {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+        background: var(--navy-mid);
+      }
+
+      .sb-tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding: 9px 4px 8px;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: var(--text-3);
+        font-size: 10px;
+        font-weight: 500;
+        font-family: var(--font);
+        cursor: pointer;
+        transition: all 0.15s;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .sb-tab:hover {
+        color: var(--text-2);
+        background: rgba(255,255,255,0.03);
+      }
+
+      .sb-tab.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+        background: rgba(26,122,255,0.06);
+      }
+
+      .sb-tab svg {
+        flex-shrink: 0;
+      }
+
+      /* ── Tab Panels ── */
+      .sb-panel {
+        display: none;
+        flex: 1;
+        overflow: hidden;
+        flex-direction: column;
+      }
+
+      .sb-panel.active {
+        display: flex;
+      }
+
+      .sb-panel .sb-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
     </style>
-    <script type="module" crossorigin src="/webgis-coastline-roc/assets/index-CZp7EDGw.js"></script>
-    <link rel="stylesheet" crossorigin href="/webgis-coastline-roc/assets/index-CIGW-MKW.css">
+    <script type="module" crossorigin src="/webgis-coastline-roc/assets/index-CmGRIOXg.js"></script>
+    <link rel="stylesheet" crossorigin href="/webgis-coastline-roc/assets/index-B2kkzdh9.css">
   </head>
   <body>
     <div id="app">
@@ -268,18 +396,10 @@
           </div>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="search-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" id="search-input" placeholder="Cari lokasi, koordinat, atau nama wilayah..." autocomplete="off"/>
-          <div class="search-dropdown" id="search-dropdown"></div>
-        </div>
-
         <div class="topbar-right">
           <div class="status-pill">
             <div class="status-dot"></div>
-            Server aktif
+            Github Pages Deployment Active
           </div>
           </button>
           <input type="file" id="file-upload" style="display:none" accept=".geojson,.json">
@@ -290,172 +410,312 @@
         </div>
       </header>
 
-      <!-- SIDEBAR -->
+      <!--
+  GANTI SELURUH <aside id="sidebar"> di index.html dengan ini-->
       <aside id="sidebar">
-        <div class="sb-scroll">
 
-          <!-- RINGKASAN -->
-          <div class="panel">
-            <div class="panel-header">
-              <div class="ph-left">
-                <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-                <span class="ph-title">Data Overview</span>
-              </div>
-              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            <div class="stats-grid">
-              <div class="stat-card">
-                <div class="stat-label">Garis Pantai</div>
-                <div class="stat-value" id="stat-shoreline-count">—</div>
-                <div class="stat-unit">fitur</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-label">Titik Abrasi</div>
-                <div class="stat-value" id="stat-erosi-count">—</div>
-                <div class="stat-unit">titik</div>
-                <div class="d-neg" id="delta-erosi"></div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-label">Titik Akresi</div>
-                <div class="stat-value" id="stat-akresi-count">—</div>
-                <div class="stat-unit">titik</div>
-                <div class="d-pos" id="delta-akresi"></div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-label">EPSG</div>
-                <div class="stat-value" style="font-size:13px;">4326</div>
-                <div class="stat-unit">WGS 84</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- LAYER DATA -->
-          <div class="panel">
-            <div class="panel-header">
-              <div class="ph-left">
-                <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
-                <span class="ph-title">Layer Data</span>
-              </div>
-              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            <div class="panel-body">
-              <div class="layer-row">
-                <div class="layer-status" id="status-shorelines"></div>
-                <div class="layer-swatch" style="background:#378ADD;"></div>
-                <span class="layer-name">Garis Pantai</span>
-                <label class="tog">
-                  <input type="checkbox" id="toggle-shorelines" checked>
-                  <span class="tog-track"></span>
-                </label>
-              </div>
-              <div class="layer-row">
-                <div class="layer-status" id="status-rates"></div>
-                <div class="layer-swatch" style="background:linear-gradient(135deg,#ff4d4d 50%,#00c9a7 50%);"></div>
-                <span class="layer-name">Titik Laju Perubahan</span>
-                <label class="tog">
-                  <input type="checkbox" id="toggle-rates">
-                  <span class="tog-track"></span>
-                </label>
-              </div>
-            </div>
-          </div>
-         <div class="panel" id="panel-layer-data">
-            <div class="panel-header">
-              <div class="ph-left">
-                <div class="ph-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 3v12m0 0-3-3m3 3 3-3M5 21h14" />
-                  </svg>
-                </div>
-                <span class="ph-title">Layer Tambahan</span>
-              </div>
-              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </div>
-            <div class="panel-body"></div>
-          </div>
-
-          <div id="filter-panel-wrap"></div>
-
-          <!-- BASEMAP -->
-          <div class="panel">
-            <div class="panel-header">
-              <div class="ph-left">
-                <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
-                <span class="ph-title">Basemap</span>
-              </div>
-              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            <div class="panel-body">
-              <label class="basemap-row">
-                <input class="basemap-radio" type="radio" name="basemap" value="satellite" checked>
-                <span class="basemap-label">Satellite Basemap</span>
-              </label>
-              <label class="basemap-row">
-                <input class="basemap-radio" type="radio" name="basemap" value="osm">
-                <span class="basemap-label">Default Basemap</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- TRANSPARANSI -->
-          <div class="panel">
-            <div class="panel-header">
-              <div class="ph-left">
-                <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20"/></svg></div>
-                <span class="ph-title">Transparansi Garis Pantai</span>
-              </div>
-              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            <div class="panel-body">
-              <div class="opacity-wrap">
-                <div class="opacity-hdr">
-                  <span class="opa-label">Opacity</span>
-                  <span class="opa-val" id="opacity-val">100%</span>
-                </div>
-                <input type="range" min="0" max="100" value="100" step="1" class="gis-slider" id="opacity-slider">
-              </div>
-            </div>
-          </div>
-
-          <!-- KETERANGAN -->
-          <div class="panel">
-            <div class="panel-header">
-              <div class="ph-left">
-                <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
-                <span class="ph-title">Keterangan</span>
-              </div>
-              <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            <div class="panel-body">
-              <div class="legend-item">
-                <div class="legend-line" style="background:#ff4d4d;"></div>
-                <div class="legend-info">
-                  <div class="legend-name">Abrasi</div>
-                  <div class="legend-desc">Kemunduran garis pantai akibat dominasi proses erosi laut</div>
-                </div>
-              </div>
-              <div class="legend-item">
-                <div class="legend-line" style="background:#00c9a7;"></div>
-                <div class="legend-info">
-                  <div class="legend-name">Akresi</div>
-                  <div class="legend-desc">Perubahan garis pantai ke arah laut akibat deposisi sedimen</div>
-                </div>
-              </div>
-              <!-- Gradien tahun garis pantai -->
-              <div style="margin-top:4px; padding-top:8px; border-top:1px solid var(--border);">
-                <div class="legend-desc" style="margin-bottom:5px;">Garis Pantai Berdasarkan Tahun</div>
-                <div style="height:4px; width:100%; border-radius:2px; background:linear-gradient(to right, hsl(0,100%,55%), hsl(140,100%,55%), hsl(280,100%,55%));"></div>
-                <div style="display:flex; justify-content:space-between; margin-top:3px;">
-                  <span style="font-size:10px;color:var(--text-3);">1984</span>
-                  <span style="font-size:10px;color:var(--text-3);">2026</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
+        <!-- ── TAB NAV ── -->
+        <div class="sb-tabs">
+          <button class="sb-tab active" data-tab="data">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Data
+          </button>
+          <button class="sb-tab" data-tab="filter">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Filter
+          </button>
+          <button class="sb-tab" data-tab="map">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+            Basemap
+          </button>
+          <button class="sb-tab" data-tab="info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Info
+          </button>
         </div>
+
+        <!-- ══════════════════════════════════════════
+            TAB 1: DATA
+        ══════════════════════════════════════════ -->
+        <div class="sb-panel active" id="tab-data">
+          <div class="sb-scroll">
+
+            <!-- Stat Cards 2x2 grid -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="ph-left">
+                  <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+                  <span class="ph-title">Data Overview</span>
+                </div>
+                <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="stats-grid">
+                <div class="stat-card">
+                  <div class="stat-label">Garis Pantai</div>
+                  <div class="stat-value" id="stat-shoreline-count">—</div>
+                  <div class="stat-unit">fitur</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Titik Abrasi</div>
+                  <div class="stat-value" id="stat-erosi-count">—</div>
+                  <div class="stat-unit">titik</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Titik Akresi</div>
+                  <div class="stat-value" id="stat-akresi-count">—</div>
+                  <div class="stat-unit">titik</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Panjang Pantai</div>
+                  <div class="stat-value" id="stat-length">—</div>
+                  <div class="stat-unit">km (ter-load)</div>
+                </div>
+                <!-- Rata-rata laju — full width -->
+                <div class="stat-card" style="grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; padding:9px 14px;">
+                  <div>
+                    <div class="stat-label">Rata-rata Laju Perubahan</div>
+                    <div class="stat-unit" style="margin-top:2px;">m/tahun (viewport)</div>
+                  </div>
+                  <div class="stat-value" id="stat-avg-rate" style="font-size:22px;">—</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Layer Data -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="ph-left">
+                  <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
+                  <span class="ph-title">Layer Data</span>
+                </div>
+                <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="panel-body">
+                <div class="layer-row">
+                  <div class="layer-status" id="status-shorelines"></div>
+                  <div class="layer-swatch" style="background:#378ADD;"></div>
+                  <span class="layer-name">Garis Pantai</span>
+                  <label class="tog"><input type="checkbox" id="toggle-shorelines" checked><span class="tog-track"></span></label>
+                </div>
+                <div class="layer-row">
+                  <div class="layer-status" id="status-rates"></div>
+                  <div class="layer-swatch" style="background:linear-gradient(135deg,#ff4d4d 50%,#00c9a7 50%);"></div>
+                  <span class="layer-name">Titik Laju Perubahan</span>
+                  <label class="tog"><input type="checkbox" id="toggle-rates" checked><span class="tog-track"></span></label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Layer Tambahan (upload) -->
+            <div class="panel" id="panel-layer-data">
+              <div class="panel-header">
+                <div class="ph-left">
+                  <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-3-3m3 3 3-3M5 21h14"/></svg></div>
+                  <span class="ph-title">Layer Tambahan</span>
+                </div>
+                <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="panel-body"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════
+            TAB 2: FILTER
+        ══════════════════════════════════════════ -->
+        <div class="sb-panel" id="tab-filter">
+          <div class="sb-scroll">
+
+            <!-- Transparansi -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="ph-left">
+                  <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20"/></svg></div>
+                  <span class="ph-title">Transparansi Garis Pantai</span>
+                </div>
+                <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="panel-body">
+                <div class="opacity-wrap">
+                  <div class="opacity-hdr">
+                    <span class="opa-label">Opacity</span>
+                    <span class="opa-val" id="opacity-val">100%</span>
+                  </div>
+                  <input type="range" min="0" max="100" value="100" step="1" class="gis-slider" id="opacity-slider">
+                </div>
+              </div>
+            </div>
+
+            <!-- Filter Panel (diisi filterPanel.js) -->
+            <div id="filter-panel-wrap"></div>
+
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════
+            TAB 3: PETA
+        ══════════════════════════════════════════ -->
+        <div class="sb-panel" id="tab-map">
+          <div class="sb-scroll">
+
+            <!-- Basemap -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="ph-left">
+                  <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
+                  <span class="ph-title">Basemap</span>
+                </div>
+                <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="panel-body">
+                <label class="basemap-row">
+                  <input class="basemap-radio" type="radio" name="basemap" value="google_sat" checked>
+                  <span class="basemap-label">Google Satellite</span>
+                </label>
+                <label class="basemap-row">
+                  <input class="basemap-radio" type="radio" name="basemap" value="google_hybrid">
+                  <span class="basemap-label">Google Hybrid</span>
+                </label>
+                <label class="basemap-row">
+                  <input class="basemap-radio" type="radio" name="basemap" value="satellite">
+                  <span class="basemap-label">Esri Satellite</span>
+                </label>
+                <label class="basemap-row">
+                  <input class="basemap-radio" type="radio" name="basemap" value="osm">
+                  <span class="basemap-label">OpenStreetMap</span>
+                </label>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════
+            TAB 4: INFO / KETERANGAN
+        ══════════════════════════════════════════ -->
+        <div class="sb-panel" id="tab-info">
+          <div class="sb-scroll">
+
+            <!-- Legend -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="ph-left">
+                  <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+                  <span class="ph-title">Keterangan</span>
+                </div>
+                <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="panel-body">
+
+                <!-- Laju perubahan -->
+                <div class="legend-item">
+                  <div class="legend-line" style="background:#ff4d4d;"></div>
+                  <div class="legend-info">
+                    <div class="legend-name">Abrasi</div>
+                    <div class="legend-desc">Kemunduran garis pantai akibat dominasi proses erosi laut</div>
+                  </div>
+                </div>
+                <div class="legend-item">
+                  <div class="legend-line" style="background:#00c9a7;"></div>
+                  <div class="legend-info">
+                    <div class="legend-name">Akresi</div>
+                    <div class="legend-desc">Perubahan garis pantai ke arah laut akibat deposisi sedimen</div>
+                  </div>
+                </div>
+
+                <!-- Gradien tahun -->
+                <div style="margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
+                  <div class="legend-desc" style="margin-bottom:5px;">Garis Pantai Berdasarkan Tahun</div>
+                  <div style="height:4px;width:100%;border-radius:2px;background:linear-gradient(to right,hsl(0,100%,55%),hsl(140,100%,55%),hsl(280,100%,55%));"></div>
+                  <div style="display:flex;justify-content:space-between;margin-top:3px;">
+                    <span style="font-size:10px;color:var(--text-3);">1985</span>
+                    <span style="font-size:10px;color:var(--text-3);">2025</span>
+                  </div>
+                </div>
+
+                <!-- Certainty -->
+                <div style="margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
+                  <div class="legend-desc" style="margin-bottom:6px;">Kualitas Data Garis Pantai</div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:4px 0;">
+                    <svg width="36" height="8" style="flex-shrink:0;"><line x1="0" y1="4" x2="36" y2="4" stroke="#8ba3c7" stroke-width="2" stroke-linecap="round"/></svg>
+                    <span style="font-size:11px;color:var(--text-2);">Good — data berkualitas baik</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:4px 0;">
+                    <svg width="36" height="8" style="flex-shrink:0;"><line x1="0" y1="4" x2="36" y2="4" stroke="#8ba3c7" stroke-width="1.5" stroke-dasharray="6 4" stroke-linecap="round"/></svg>
+                    <span style="font-size:11px;color:var(--text-2);">Insufficient Data</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:4px 0;">
+                    <svg width="36" height="8" style="flex-shrink:0;"><line x1="0" y1="4" x2="36" y2="4" stroke="#8ba3c7" stroke-width="1.5" stroke-dasharray="2 4" stroke-linecap="round"/></svg>
+                    <span style="font-size:11px;color:var(--text-2);">Unstable Data</span>
+                  </div>
+                </div>
+
+                <!-- Cluster -->
+                <div style="margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
+                  <div class="legend-desc" style="margin-bottom:6px;">Warna Cluster Titik Perubahan</div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                      <div style="width:12px;height:12px;border-radius:50%;background:#ff4d4d;flex-shrink:0;"></div>
+                      <span style="font-size:11px;color:var(--text-2);">Mayoritas Abrasi</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:5px;">
+                      <div style="width:12px;height:12px;border-radius:50%;background:#00c9a7;flex-shrink:0;"></div>
+                      <span style="font-size:11px;color:var(--text-2);">Mayoritas Akresi</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:5px;">
+                      <div style="width:12px;height:12px;border-radius:50%;background:#f5a623;flex-shrink:0;"></div>
+                      <span style="font-size:11px;color:var(--text-2);">Campuran</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Tentang -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="ph-left">
+                  <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+                  <span class="ph-title">Tentang Data</span>
+                </div>
+                <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="panel-body">
+                <p style="font-size:11px;color:var(--text-3);line-height:1.65;">
+                  Data diekstraksi dari citra <strong style="color:var(--text-2);">Landsat 5, 7, 8, 9</strong>
+                  menggunakan metode sub-pixel waterline extraction yang diadaptasi dari
+                  <strong style="color:var(--text-2);">DEA Coastlines</strong> - Geoscience Australia.
+                </p>
+                <p style="font-size:11px;color:var(--text-3);line-height:1.65;margin-top:7px;">
+                  Periode: 1985–2025 · Resolusi: 30 m ·
+                </p>
+                <button id="btn-reopen-disclaimer" style="
+                  margin-top:10px; width:100%; padding:7px;
+                  background:transparent; border:1px solid var(--border);
+                  border-radius:var(--r-sm); color:var(--text-2);
+                  font-size:12px; font-family:var(--font); cursor:pointer;
+                  transition:all .12s;
+                ">
+                  Buka Disclaimer Lengkap
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="sb-footer">
+          <div class="sb-footer-text">
+            Data diadaptasi dari
+            <a href="https://knowledge.dea.ga.gov.au/data/product/dea-coastlines/" target="_blank" rel="noopener" class="sb-footer-link">DEA Coastlines</a>
+            - <a href="https://www.ga.gov.au/" target="_blank" rel="noopener" class="sb-footer-link">Geoscience Australia</a>.
+            Hasil bersifat indikatif — bukan produk survei resmi.
+          </div>
+        </div>
+
       </aside>
 
       <!-- MAP -->
