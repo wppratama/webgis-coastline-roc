@@ -1,8 +1,3 @@
-/**
- * main.js — Entry point WebGIS Dinamika Garis Pantai Indonesia
- * Versi final: TileLoader + FilterPanel terhubung
- */
-
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet/dist/leaflet.css';
@@ -13,21 +8,33 @@ import { setupBasemap } from './src/map/basemap.js';
 import { initMap } from './src/map/init.js';
 import { setupDisclaimer } from './src/ui/disclaimer.js';
 import { FilterPanel } from './src/ui/filterPanel.js';
-import { setupSearch } from './src/ui/search.js';
+import { setupFlexZoom } from './src/ui/flexZoom.js';
+import { LabelManager } from './src/ui/labelManager.js';
+import { setupMapLayout } from './src/ui/mapLayout.js';
 import { setupSidebar } from './src/ui/sidebar.js';
 import { setupToolbar } from './src/ui/toolbar.js';
-
 
 // ── 1. Peta ────────────────────────────────────────────────
 const map = initMap('map', { center: [-2.5, 118.0], zoom: 5 });
 
 // ── 2. Basemap ─────────────────────────────────────────────
 setupBasemap(map);
-setupSearch(map);
+setupMapLayout(map);
 
 // ── 3. Tile loader ─────────────────────────────────────────
-const tileLoader = new TileLoader(map, { yearMin: 1985, yearMax: 2025 });
+const tileLoader = new TileLoader(map, { yearMin: 1984, yearMax: 2025 });
 await tileLoader.init();
+const labelMgr = new LabelManager(map);
+// Hubungkan data dari tileLoader ke LabelManager
+tileLoader.onTileLoaded = (shorelineData, rateData) => {
+  // Pastikan parameter .features disesuaikan dengan struktur GeoJSON-mu
+  if (shorelineData?.features) labelMgr.addShorelineFeatures(shorelineData.features);
+  if (rateData?.features)      labelMgr.addRateFeatures(rateData.features);
+};
+
+tileLoader.onClearTiles = () => {
+  labelMgr.clear();
+};
 
 const { shorelinesGroup, ratesGroup } = tileLoader;
 
@@ -66,9 +73,8 @@ setupSidebar({
 
 // ── 6. Toolbar ─────────────────────────────────────────────
 setupToolbar(map);
+setupFlexZoom(tileLoader);
 
-// ── 7. Search geocoder ─────────────────────────────────────
-setupSearch(map);
 
 // ── 8. Upload GeoJSON tambahan ─────────────────────────────
 setupUpload(map);
@@ -96,7 +102,17 @@ map.on('zoomend', () => {
 setupDisclaimer();
 document.getElementById('btn-reopen-disclaimer')
   ?.addEventListener('click', () => {
-    // Hapus flag localStorage agar popup muncul lagi
+    // 1. Hapus flag localStorage
     localStorage.removeItem('webgis_disclaimer_accepted');
+    
+    // 2. Coba panggil fungsinya lagi
     setupDisclaimer();
+
+    // 3. PAKSA TAMPILKAN ELEMEN YANG TERSEMBUNYI
+    // (Ganti 'disclaimer-modal' dengan ID elemen pembungkus disclaimer-mu)
+    const modal = document.getElementById('disclaimer-modal'); 
+    if (modal) {
+      modal.style.display = 'flex'; // atau 'block'
+      modal.classList.remove('hidden'); // Jika kamu pakai class CSS
+    }
   });

@@ -496,10 +496,28 @@
                   <label class="tog"><input type="checkbox" id="toggle-shorelines" checked><span class="tog-track"></span></label>
                 </div>
                 <div class="layer-row">
+                  <div class="layer-status"></div>
+                  <div class="layer-swatch" style="background:transparent; border: 1px dashed #fff; border-radius: 2px; text-align:center; font-size:10px; line-height:14px;">T</div>
+                  <span class="layer-name">Label Tahun Garis Pantai</span>
+                  <label class="tog">
+                    <input type="checkbox" id="toggle-label-sl"> <span class="tog-track"></span>
+                  </label>
+                </div>
+
+                <div class="layer-row">
                   <div class="layer-status" id="status-rates"></div>
                   <div class="layer-swatch" style="background:linear-gradient(135deg,#ff4d4d 50%,#00c9a7 50%);"></div>
                   <span class="layer-name">Titik Laju Perubahan</span>
                   <label class="tog"><input type="checkbox" id="toggle-rates" checked><span class="tog-track"></span></label>
+                </div>
+                
+                <div class="layer-row">
+                  <div class="layer-status"></div>
+                  <div class="layer-swatch" style="background:transparent; border: 1px dashed #fff; border-radius: 2px; text-align:center; font-size:10px; line-height:14px;">9.3</div>
+                  <span class="layer-name">Label Laju Perubahan</span>
+                  <label class="tog">
+                    <input type="checkbox" id="toggle-label-rt"> <span class="tog-track"></span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -637,7 +655,7 @@
                   <div class="legend-desc" style="margin-bottom:6px;">Kualitas Data Garis Pantai</div>
                   <div style="display:flex;align-items:center;gap:10px;padding:4px 0;">
                     <svg width="36" height="8" style="flex-shrink:0;"><line x1="0" y1="4" x2="36" y2="4" stroke="#8ba3c7" stroke-width="2" stroke-linecap="round"/></svg>
-                    <span style="font-size:11px;color:var(--text-2);">Good — data berkualitas baik</span>
+                    <span style="font-size:11px;color:var(--text-2);">Good</span>
                   </div>
                   <div style="display:flex;align-items:center;gap:10px;padding:4px 0;">
                     <svg width="36" height="8" style="flex-shrink:0;"><line x1="0" y1="4" x2="36" y2="4" stroke="#8ba3c7" stroke-width="1.5" stroke-dasharray="6 4" stroke-linecap="round"/></svg>
@@ -745,6 +763,14 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
             </button>
           </div>
+        </div>
+        <div class="map-container" style="position: relative;">
+            <div id="map"></div>
+
+            <div class="map-toolbar">
+                <div class="tool-group">
+                    </div>
+            </div>
         </div>
 
         <div class="map-bottombar">

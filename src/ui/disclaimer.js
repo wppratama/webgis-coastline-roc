@@ -9,14 +9,32 @@
  *   import { setupDisclaimer } from './src/ui/disclaimer.js';
  *   setupDisclaimer();
  */
-
 const STORAGE_KEY = 'webgis_disclaimer_accepted';
 
-export function setupDisclaimer() {
-  // Jika sudah pernah disetujui, langsung keluar
-  if (localStorage.getItem(STORAGE_KEY) === 'true') return;
+// KUNCI PERBAIKAN: Tambahkan parameter "forceOpen"
+export function setupDisclaimer(forceOpen = false) {
+  // Jika TIDAK dipaksa buka, dan sudah pernah disetujui, maka keluar
+  if (!forceOpen && localStorage.getItem(STORAGE_KEY) === 'true') {
+    return;
+  }
 
   _injectStyles();
+
+  // Hapus popup lama jika masih nyangkut di sistem agar tidak ganda
+  const existing = document.getElementById('disclaimer-overlay');
+  if (existing) existing.remove();
+
+  _buildPopup();
+}
+
+// ── TAMBAHKAN FUNGSI INI ─────────────────────────────────
+export function openDisclaimer() {
+  _injectStyles();
+  
+  // Hapus popup lama jika kebetulan masih nyangkut di DOM (mencegah dobel)
+  const existing = document.getElementById('disclaimer-overlay');
+  if (existing) existing.remove();
+  
   _buildPopup();
 }
 

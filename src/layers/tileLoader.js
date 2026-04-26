@@ -20,9 +20,9 @@ const BASE_URL = './tiles';
 
 // Certainty → style garis
 const CERT_STYLE = {
-  'good':             { dashArray: null,  weight: 2,   opacity: 0.9  },
-  'insufficient data':{ dashArray: '8 5', weight: 1.5, opacity: 0.7  },
-  'unstable data':    { dashArray: '2 5', weight: 1.5, opacity: 0.55 },
+  'good':             { dashArray: null,  weight: 1,   opacity: 0.9  },
+  'insufficient data':{ dashArray: '8 5', weight: 0.5, opacity: 0.7  },
+  'unstable data':    { dashArray: '2 5', weight: 0.5, opacity: 0.55 },
 };
 const getCertStyle = c => CERT_STYLE[c] ?? CERT_STYLE['good'];
 
@@ -56,6 +56,8 @@ export class TileLoader {
       showStabil: true,
       minRate:    0,
     };
+
+    this._isFlexZoomActive = false; 
   }
 
   // ── PUBLIC API ────────────────────────────────────────────
@@ -87,6 +89,18 @@ export class TileLoader {
     this._shorelineLayers.forEach(({ layer }) => {
       layer.setStyle?.({ opacity });
     });
+  }
+
+  setShorelinesOpacity(opacity) {
+    this._shorelineLayers.forEach(({ layer }) => {
+      layer.setStyle?.({ opacity });
+    });
+  }
+
+  // TAMBAHKAN FUNGSI INI:
+  setFlexZoom(isActive) {
+    this._isFlexZoomActive = isActive;
+    this._applyFilterToLoaded(); // Panggil ulang filter agar UI langsung update
   }
 
   // ── TILE MANAGEMENT ──────────────────────────────────────
@@ -130,11 +144,24 @@ export class TileLoader {
         fetch(`${BASE_URL}/rates/rates_tile_${tid}.geojson`),
       ]);
 
+      // 1. Buat variabel untuk menampung data GeoJSON
+      let slData = null;
+      let rtData = null;
+
       if (slRes.status === 'fulfilled' && slRes.value.ok) {
-        this._renderShorelines(await slRes.value.json());
+        slData = await slRes.value.json();     // Simpan ke variabel
+        this._renderShorelines(slData);        // Render ke peta
       }
+      
       if (rtRes.status === 'fulfilled' && rtRes.value.ok) {
-        this._renderRates(await rtRes.value.json());
+        rtData = await rtRes.value.json();     // Simpan ke variabel
+        this._renderRates(rtData);             // Render ke peta
+      }
+
+      // 2. ---> TAMBAHKAN KODE LABEL DI SINI <---
+      if (this.onTileLoaded) {
+        // Kirim data yang sudah disimpan tadi ke LabelManager
+        this.onTileLoaded(slData, rtData);
       }
 
       this._loadedTiles.add(tileId);
@@ -183,7 +210,7 @@ export class TileLoader {
         const cs        = getCertStyle(certainty);
         const isZoom16  = zoom >= 16;
         const isLatest  = parseInt(year) === parseInt(this._filter.yearMax);
-        const visible   = this._visibleYear(year) && (isZoom16 || isLatest);
+        const visible   = this._visibleYear(year) && (this._isFlexZoomActive || isZoom16 || isLatest);
 
         return {
           color:     getWarnaTahun(year),
@@ -215,6 +242,8 @@ export class TileLoader {
         );
 
         layer.on('mouseover', function () {
+          if (this.options.opacity === 0) return;
+
           this.setStyle({ weight: cs.weight + 2, color: '#ffffff' });
           this.bringToFront();
         });
@@ -255,10 +284,10 @@ export class TileLoader {
         if (!isStbl) warna = isErosi ? '#ff4d4d' : '#00c9a7';
 
         const marker = L.circleMarker(latlng, {
-          radius:      5,
+          radius:      3,
           fillColor:   warna,
           color:       'rgba(255,255,255,0.7)',
-          weight:      1,
+          weight:      0.5,
           opacity:     1,
           fillOpacity: 1,
           _isErosi:    isErosi && !isStbl,
@@ -317,8 +346,6 @@ export class TileLoader {
 
   // ── CLUSTER GROUP ────────────────────────────────────────
 
-  // ── CLUSTER GROUP ────────────────────────────────────────
-
   _buildClusterGroup() {
     const group = L.markerClusterGroup({
       maxClusterRadius: z => z<=5?100 : z<=7?80 : z<=9?60 : z<=11?45 : z<=15?35 : 10,
@@ -339,7 +366,7 @@ export class TileLoader {
         else                  { bg = '#f5a623'; border = '#c47a00'; }
         
         // 1. UKURAN DIPERKECIL (Sebelumnya: 32, 38, 44, 50)
-        const sz = total < 10 ? 24 : total < 50 ? 28 : total < 200 ? 34 : 40;
+        const sz = total < 10 ? 20 : total < 50 ? 24 : total < 200 ? 28 : 32;
         
         // 2. FONT DISESUAIKAN agar muat di lingkaran yang lebih kecil
         const fontSize = sz < 30 ? 10 : 11;
@@ -396,7 +423,14 @@ export class TileLoader {
       if (!layer.setStyle) return;
       const cs       = getCertStyle(certainty);
       const isLatest = parseInt(year) === parseInt(this._filter.yearMax);
-      const visible  = this._visibleYear(year) && (isZoom16 || isLatest);
+      const visible  = this._visibleYear(year) && (this._isFlexZoomActive || isZoom16 || isLatest);
+
+      // 1. Matikan interaksi jika tidak visible
+      layer.options.interactive = visible; 
+      if (!visible) {
+        layer.closeTooltip();
+        layer.closePopup();
+      }
       
       layer.setStyle({
         opacity:   visible ? cs.opacity : 0,
@@ -445,7 +479,7 @@ export class TileLoader {
     // 3. Looping Garis Pantai yang masuk layar
     this._shorelineLayers.forEach(({ layer, year }) => {
       const isLatest = parseInt(year) === parseInt(this._filter.yearMax);
-      const visible  = this._visibleYear(year) && (zoom >= 16 || isLatest);
+      const visible  = this._visibleYear(year) && (this._isFlexZoomActive || zoom >= 16 || isLatest);
       if (!visible) return;
 
       if (layer.getBounds && bounds.intersects(layer.getBounds())) {

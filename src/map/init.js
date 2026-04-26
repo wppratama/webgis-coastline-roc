@@ -16,7 +16,7 @@ export function initMap(containerId, opts = {}) {
     center: opts.center ?? [-2.5, 118.0],
     zoom:   opts.zoom   ?? 5,
     minZoom: 4,
-    maxZoom: 16,   // ← Esri & Google masih bagus sampai sini untuk Indonesia
+    maxZoom: 18,   // ← Esri & Google masih bagus sampai sini untuk Indonesia
 
     // Batasi pan ke sekitar Indonesia + buffer
     maxBounds: L.latLngBounds(
