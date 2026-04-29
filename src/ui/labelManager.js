@@ -7,68 +7,68 @@
  *     - Teks rotate sesuai bearing garis di titik tersebut
  *     - Interval adaptif per zoom (makin zoom in makin rapat)
  *     - Anti-collision: label baru tidak ditempatkan jika terlalu dekat label lain
+ *     - ✔ Sinkron dengan visibilitas TileLoader (flexZoom / zoom16 / isLatest)
  *
  *  2. RATE LABELS — nilai laju perubahan di samping titik
  *     - Format: "9.3 m (±1.0)"
- *     - Warna merah (abrasi) / biru (akresi)
+ *     - Warna merah (abrasi) / hijau (akresi)
  *     - Anti-collision grid-based
  *     - Hanya muncul di zoom >= 10
  *
  *  Cara pakai di main.js:
  *    import { LabelManager } from './src/ui/labelManager.js';
  *    const labelMgr = new LabelManager(map);
- *    // Panggil setelah tileLoader selesai load:
+ *
+ *    // Setelah tile selesai load:
  *    tileLoader.onTileLoaded = (slData, rtData) => {
- *      labelMgr.addShorelineFeatures(slData.features);
- *      labelMgr.addRateFeatures(rtData.features);
+ *      if (slData?.features) labelMgr.addShorelineFeatures(slData.features);
+ *      if (rtData?.features) labelMgr.addRateFeatures(rtData.features);
  *    };
+ *
+ *    // Sinkronkan flexZoom:
+ *    const _origSetFlexZoom = tileLoader.setFlexZoom.bind(tileLoader);
+ *    tileLoader.setFlexZoom = (isActive) => {
+ *      _origSetFlexZoom(isActive);
+ *      labelMgr.setFlexZoom(isActive, tileLoader._filter.yearMax);
+ *    };
+ *
+ *    // Sinkronkan filter tahun:
+ *    onFilterChange: (filter) => {
+ *      tileLoader.applyFilter({ ... });
+ *      labelMgr.setYearMax(filter.yearMax);
+ *    }
  */
 
 export class LabelManager {
   constructor(map) {
     this.map = map;
 
-    // State
-    this._shorelineFeatures = [];   // semua fitur garis pantai
-    this._rateFeatures      = [];   // semua fitur titik rates
+    // ── State fitur ─────────────────────────────────────
+    this._shorelineFeatures = [];
+    this._rateFeatures      = [];
 
     this._shorelineLabelsOn = false;
     this._rateLabelsOn      = false;
 
-    // SVG overlay di atas peta
-    this._svg = this._createSVGOverlay();
+    // ── State sinkronisasi visibilitas (BARU) ───────────
+    // Harus sama dengan kondisi di TileLoader._applyFilterToLoaded()
+    this._flexZoomActive = false;
+    this._filterYearMax  = 2025;
 
-    // Kelompok elemen per tipe
-    this._slGroup  = this._createGroup('sl-labels');
-    this._rtGroup  = this._createGroup('rt-labels');
+    // ── SVG overlay di atas peta ────────────────────────
+    this._svg     = this._createSVGOverlay();
+    this._slGroup = this._createGroup('sl-labels');
+    this._rtGroup = this._createGroup('rt-labels');
 
-    // Re-render saat peta bergerak
+    // Re-render saat peta bergerak / zoom
     this.map.on('moveend', () => this._render());
     this.map.on('zoomend', () => this._render());
 
-    this._flexZoomActive = false;
-    this._filterYearMax  = 2025; // akan di-set dari luar
-
-    // Tambahkan method baru:
-  
-    // Inject CSS
     this._injectStyles();
-
-    // Build toolbar buttons
     this._buildButtons();
   }
 
-    setFlexZoom(isActive) {
-      this._flexZoomActive = isActive;
-      if (this._shorelineLabelsOn) this._renderShorelineLabels();
-    }
-
-    setYearMax(yearMax) {
-      this._filterYearMax = yearMax;
-    }
-
-    
-  // ── PUBLIC API ──────────────────────────────────────────
+  // ── PUBLIC API ────────────────────────────────────────
 
   /** Tambah fitur garis pantai dari tile yang baru dimuat */
   addShorelineFeatures(features) {
@@ -86,36 +86,56 @@ export class LabelManager {
   clear() {
     this._shorelineFeatures = [];
     this._rateFeatures      = [];
-    this._slGroup.innerHTML  = '';
-    this._rtGroup.innerHTML  = '';
+    this._slGroup.innerHTML = '';
+    this._rtGroup.innerHTML = '';
   }
 
-  // ── TOGGLE BUTTONS ───────────────────────────────────────
+  /**
+   * Sinkronkan status flexZoom dari TileLoader.
+   * Panggil setiap kali tileLoader.setFlexZoom() dipanggil.
+   * @param {boolean} isActive
+   * @param {number}  [yearMax]
+   */
+  setFlexZoom(isActive, yearMax) {
+    this._flexZoomActive = isActive;
+    if (yearMax !== undefined) this._filterYearMax = parseInt(yearMax);
+    if (this._shorelineLabelsOn) this._renderShorelineLabels();
+  }
+
+  /**
+   * Sinkronkan yearMax dari filter panel.
+   * Panggil setiap kali filter tahun berubah.
+   * @param {number} yearMax
+   */
+  setYearMax(yearMax) {
+    this._filterYearMax = parseInt(yearMax);
+    if (this._shorelineLabelsOn) this._renderShorelineLabels();
+  }
+
+  // ── TOGGLE BUTTONS ───────────────────────────────────
 
   _buildButtons() {
-      const togSL = document.getElementById('toggle-label-sl');
-      const togRT = document.getElementById('toggle-label-rt');
+    const togSL = document.getElementById('toggle-label-sl');
+    const togRT = document.getElementById('toggle-label-rt');
 
-      // Listener untuk toggle Label Garis Pantai
-      if (togSL) {
-        togSL.addEventListener('change', (e) => {
-          this._shorelineLabelsOn = e.target.checked;
-          this._slGroup.style.display = this._shorelineLabelsOn ? '' : 'none';
-          if (this._shorelineLabelsOn) this._render();
-        });
-      }
-
-      // Listener untuk toggle Label Titik Laju
-      if (togRT) {
-        togRT.addEventListener('change', (e) => {
-          this._rateLabelsOn = e.target.checked;
-          this._rtGroup.style.display = this._rateLabelsOn ? '' : 'none';
-          if (this._rateLabelsOn) this._render();
-        });
-      }
+    if (togSL) {
+      togSL.addEventListener('change', (e) => {
+        this._shorelineLabelsOn = e.target.checked;
+        this._slGroup.style.display = this._shorelineLabelsOn ? '' : 'none';
+        if (this._shorelineLabelsOn) this._render();
+      });
     }
 
-  // ── SVG OVERLAY ──────────────────────────────────────────
+    if (togRT) {
+      togRT.addEventListener('change', (e) => {
+        this._rateLabelsOn = e.target.checked;
+        this._rtGroup.style.display = this._rateLabelsOn ? '' : 'none';
+        if (this._rateLabelsOn) this._render();
+      });
+    }
+  }
+
+  // ── SVG OVERLAY ──────────────────────────────────────
 
   _createSVGOverlay() {
     const existing = document.getElementById('label-svg-overlay');
@@ -132,21 +152,21 @@ export class LabelManager {
   }
 
   _createGroup(id) {
-    const g  = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    g.id     = id;
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.id    = id;
     g.style.display = 'none';
     this._svg.appendChild(g);
     return g;
   }
 
-  // ── MAIN RENDER ──────────────────────────────────────────
+  // ── MAIN RENDER ──────────────────────────────────────
 
   _render() {
     if (this._shorelineLabelsOn) this._renderShorelineLabels();
     if (this._rateLabelsOn)      this._renderRateLabels();
   }
 
-  // ── RENDER SHORELINE LABELS ──────────────────────────────
+  // ── RENDER SHORELINE LABELS ──────────────────────────
 
   _renderShorelineLabels() {
     this._slGroup.innerHTML = '';
@@ -164,10 +184,7 @@ export class LabelManager {
     const minSegLen = minDist * 0.6;
 
     // Anti-collision: simpan posisi label yang sudah ditempatkan
-    const placed = [];   // [{ x, y, r }]  r = radius eksklusif
-
-    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-    this._slGroup.appendChild(defs);
+    const placed = [];
 
     // Group per tahun agar label setiap tahun punya warna sesuai
     const byYear = new Map();
@@ -178,16 +195,25 @@ export class LabelManager {
     });
 
     byYear.forEach((features, year) => {
-      const hue   = Math.max(0, Math.min(280, (parseInt(year) - 1984) * 7));
-      const color = isNaN(parseInt(year)) ? '#fff' : `hsl(${hue},100%,65%)`;
+      const yearInt  = parseInt(year);
+      const isLatest = yearInt === this._filterYearMax;
+      const isZoom16 = zoom >= 16;
+
+      // ── KUNCI PERBAIKAN ──────────────────────────────
+      // Replikasi kondisi visibilitas yang sama persis dengan
+      // TileLoader._applyFilterToLoaded() baris:
+      //   const visible = ... && (this._isFlexZoomActive || isZoom16 || isLatest);
+      // Jika garis tidak visible di peta, jangan render labelnya.
+      const yearVisible = this._flexZoomActive || isZoom16 || isLatest;
+      if (!yearVisible) return; // skip seluruh tahun ini
+      // ─────────────────────────────────────────────────
+
+      const hue   = Math.max(0, Math.min(280, (yearInt - 1984) * 7));
+      const color = isNaN(yearInt) ? '#fff' : `hsl(${hue},100%,65%)`;
 
       features.forEach(feature => {
         const geom = feature.geometry;
         if (!geom) return;
-
-        const yearInt = parseInt(year);
-        const isLatest = yearInt === parseInt(this._filterYearMax);
-        if (!this._flexZoomActive && !isLatest) return; // skip seperti tileLoader
 
         const lines = geom.type === 'LineString'
           ? [geom.coordinates]
@@ -224,7 +250,6 @@ export class LabelManager {
           for (let n = 1; n <= numLabels; n++) {
             const targetDist = step * n;
             let   accum      = 0;
-            let   placed_ok  = false;
 
             for (let i = 1; i < pts.length; i++) {
               const segLen = segLens[i-1];
@@ -254,7 +279,6 @@ export class LabelManager {
                   if (lx > -40 && lx < W+40 && ly > -20 && ly < H+20) {
                     this._placeSLLabel(lx, ly, angle, String(year), color);
                     placed.push({ x: lx, y: ly });
-                    placed_ok = true;
                   }
                 }
                 break;
@@ -272,39 +296,35 @@ export class LabelManager {
     g.setAttribute('transform', `translate(${x},${y}) rotate(${angle})`);
 
     const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    // Posisikan teks persis memotong tengah garis
-    t.setAttribute('text-anchor', 'middle');
-    t.setAttribute('dominant-baseline', 'central'); 
+    t.setAttribute('text-anchor',       'middle');
+    t.setAttribute('dominant-baseline', 'central');
 
-    // ── STYLING TEKS HALO (TANPA BACKGROUND KOTAK) ──
-    t.setAttribute('fill', '#ffffff');               // Warna inti teks (putih)
-    t.setAttribute('stroke', 'rgba(0,0,0,0.85)');    // Warna outline (hitam transparan)
-    t.setAttribute('stroke-width', '3');             // Ketebalan outline
-    t.setAttribute('stroke-linejoin', 'round');
-    t.setAttribute('paint-order', 'stroke fill');    // Trik SVG: Gambar outline dulu di belakang, baru isi teks putih di depannya
+    // Warna teks mengikuti warna garis tahunnya (bukan selalu putih)
+    t.setAttribute('fill',             color);
+    t.setAttribute('stroke',           'rgba(0,0,0,0.9)');
+    t.setAttribute('stroke-width',     '3');
+    t.setAttribute('stroke-linejoin',  'round');
+    // Trik SVG: gambar outline dulu di belakang, baru isi warna di depan
+    t.setAttribute('paint-order',      'stroke fill');
 
-    // ── TIPOGRAFI ──
-    t.setAttribute('font-size', '11');
-    t.setAttribute('font-family', "'Inter', 'DM Sans', sans-serif");
-    t.setAttribute('font-weight', '700');
-    t.setAttribute('letter-spacing', '0.05em');
-
-    // Opsional: Bayangan tipis agar makin menyatu dengan satelit
-    t.setAttribute('filter', 'drop-shadow(0px 1px 1px rgba(0,0,0,0.5))');
+    t.setAttribute('font-size',        '11');
+    t.setAttribute('font-family',      "'Inter', 'DM Sans', sans-serif");
+    t.setAttribute('font-weight',      '700');
+    t.setAttribute('letter-spacing',   '0.05em');
+    t.setAttribute('filter',           'drop-shadow(0px 1px 2px rgba(0,0,0,0.6))');
 
     t.textContent = text;
     g.appendChild(t);
     this._slGroup.appendChild(g);
   }
 
-  // ── RENDER RATE LABELS ───────────────────────────────────
+  // ── RENDER RATE LABELS ───────────────────────────────
 
   _renderRateLabels() {
     this._rtGroup.innerHTML = '';
     if (!this._rateFeatures.length) return;
 
     const zoom = this.map.getZoom();
-    // Label rate hanya muncul di zoom >= 10
     if (zoom < 10) {
       this._rtGroup.innerHTML = `
         <text x="50%" y="50%"
@@ -319,7 +339,7 @@ export class LabelManager {
     const W = this._svg.clientWidth;
     const H = this._svg.clientHeight;
 
-    // Anti-collision grid: bagi layar ke sel 100×20 px
+    // Anti-collision grid: bagi layar ke sel 100×24 px
     const CELL_W = 100, CELL_H = 24;
     const cols   = Math.ceil(W / CELL_W);
     const rows   = Math.ceil(H / CELL_H);
@@ -360,25 +380,26 @@ export class LabelManager {
       );
 
     sorted.forEach(feature => {
-      const coords  = feature.geometry?.coordinates;
+      const coords = feature.geometry?.coordinates;
       if (!coords) return;
 
-      const rate    = parseFloat(feature.properties?.rate_time ?? 0);
-      const uncert  = parseFloat(feature.properties?.uncertainty
-                               ?? feature.properties?.rate_time_unc
-                               ?? feature.properties?.unc
-                               ?? 0);
-      if (Math.abs(rate) < 0.05) return;  // skip stabil
+      const rate   = parseFloat(feature.properties?.rate_time ?? 0);
+      const uncert = parseFloat(
+        feature.properties?.uncertainty
+        ?? feature.properties?.rate_time_unc
+        ?? feature.properties?.unc
+        ?? 0
+      );
+      if (Math.abs(rate) < 0.05) return; // skip stabil
 
-      const px      = this.map.latLngToContainerPoint([coords[1], coords[0]]);
-      const x       = px.x, y = px.y;
+      const px = this.map.latLngToContainerPoint([coords[1], coords[0]]);
+      const x  = px.x, y = px.y;
 
-      const isErosi = rate < 0;
-      const color   = '#ffffff'; // Teks selalu putih agar jelas
-      const bgColor = isErosi ? 'rgba(220, 38, 38, 0.85)' : 'rgba(5, 150, 105, 0.85)'; // Merah/Hijau Solid
-      const border  = isErosi ? '#fca5a5' : '#6ee7b7';
+      const isErosi  = rate < 0;
+      const color    = '#ffffff';
+      const bgColor  = isErosi ? 'rgba(220,38,38,0.85)' : 'rgba(5,150,105,0.85)';
+      const border   = isErosi ? '#fca5a5' : '#6ee7b7';
 
-      // Format teks: "9.3 m" atau "-2.8 m (±0.5)"
       const rateStr  = rate.toFixed(1) + ' m';
       const uncStr   = uncert > 0 ? ` (±${uncert.toFixed(1)})` : '';
       const fullText = rateStr + uncStr;
@@ -388,15 +409,16 @@ export class LabelManager {
 
       // Coba 4 posisi: kanan, kiri, atas, bawah titik
       const offsets = [
-        { dx: 14, dy: 0,    anchor: 'start'  },
-        { dx: -14, dy: 0,   anchor: 'end'    },
-        { dx: 0,  dy: -12,  anchor: 'middle' },
-        { dx: 0,  dy: 16,   anchor: 'middle' },
+        { dx:  14, dy:   0, anchor: 'start'  },
+        { dx: -14, dy:   0, anchor: 'end'    },
+        { dx:   0, dy: -12, anchor: 'middle' },
+        { dx:   0, dy:  16, anchor: 'middle' },
       ];
 
-      let placed = false;
       for (const off of offsets) {
-        const lx = x + off.dx + (off.anchor === 'start' ? textW/2 : off.anchor === 'end' ? -textW/2 : 0);
+        const lx = x + off.dx + (off.anchor === 'start'  ?  textW/2
+                               : off.anchor === 'end'    ? -textW/2
+                               : 0);
         const ly = y + off.dy;
 
         if (lx < 0 || lx > W || ly < -10 || ly > H+10) continue;
@@ -404,7 +426,6 @@ export class LabelManager {
 
         markGrid(lx, ly, textW + 6, textH + 4);
         this._placeRateLabel(x, y, lx, ly, fullText, color, bgColor, border, off.anchor);
-        placed = true;
         break;
       }
     });
@@ -413,54 +434,58 @@ export class LabelManager {
   _placeRateLabel(dotX, dotY, lx, ly, text, color, bgColor, borderColor, anchor) {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
 
-    // Leader line dari titik ke label (hanya jika ada jarak)
+    // Leader line dari titik ke label
     const dx = lx - dotX, dy = ly - dotY;
     if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('x1', dotX); line.setAttribute('y1', dotY);
       line.setAttribute('x2', lx);   line.setAttribute('y2', ly);
-      line.setAttribute('stroke', color);
-      line.setAttribute('stroke-width', '0.8');
+      line.setAttribute('stroke',         color);
+      line.setAttribute('stroke-width',   '0.8');
       line.setAttribute('stroke-opacity', '0.5');
       line.setAttribute('stroke-dasharray', '3 2');
       g.appendChild(line);
     }
 
     // Background pill
-    const tw   = text.length * 5.8 + 12;
-    const th   = 16;
-    const bx   = anchor === 'start'  ? lx - 2
-               : anchor === 'end'    ? lx - tw + 2
-               : lx - tw/2;
+    const tw  = text.length * 5.8 + 12;
+    const th  = 16;
+    const bx  = anchor === 'start' ? lx - 2
+              : anchor === 'end'   ? lx - tw + 2
+              : lx - tw/2;
 
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x',  bx);
-    rect.setAttribute('y',  ly - th/2);
-    rect.setAttribute('width',  tw);
-    rect.setAttribute('height', th);
-    rect.setAttribute('rx', '4');
-    rect.setAttribute('fill',   bgColor);
-    rect.setAttribute('stroke', borderColor);
+    rect.setAttribute('x',            bx);
+    rect.setAttribute('y',            ly - th/2);
+    rect.setAttribute('width',        tw);
+    rect.setAttribute('height',       th);
+    rect.setAttribute('rx',           '4');
+    rect.setAttribute('fill',         bgColor);
+    rect.setAttribute('stroke',       borderColor);
     rect.setAttribute('stroke-width', '0.8');
     g.appendChild(rect);
 
     // Teks nilai
     const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    t.setAttribute('x', anchor === 'start' ? bx + 6 : anchor === 'end' ? lx - 6 : lx);
-    t.setAttribute('y', ly + 1);
-    t.setAttribute('text-anchor', anchor === 'start' ? 'start' : anchor === 'end' ? 'end' : 'middle');
-    t.setAttribute('dominant-baseline', 'middle');
-    t.setAttribute('fill', color);
-    t.setAttribute('font-size', '9');
-    t.setAttribute('font-family', "'Inter','DM Sans',sans-serif");
-    t.setAttribute('font-weight', '600');
+    t.setAttribute('x', anchor === 'start' ? bx + 6
+                       : anchor === 'end'   ? lx - 6
+                       : lx);
+    t.setAttribute('y',                  ly + 1);
+    t.setAttribute('text-anchor',        anchor === 'start' ? 'start'
+                                        : anchor === 'end'  ? 'end'
+                                        : 'middle');
+    t.setAttribute('dominant-baseline',  'middle');
+    t.setAttribute('fill',              color);
+    t.setAttribute('font-size',         '9');
+    t.setAttribute('font-family',       "'Inter','DM Sans',sans-serif");
+    t.setAttribute('font-weight',       '600');
     t.textContent = text;
     g.appendChild(t);
 
     this._rtGroup.appendChild(g);
   }
 
-  // ── INJECT STYLES ────────────────────────────────────────
+  // ── INJECT STYLES ────────────────────────────────────
 
   _injectStyles() {
     if (document.getElementById('label-mgr-styles')) return;

@@ -35,7 +35,7 @@ export class TileLoader {
     };
 
     this._ensurePanes();
-    this._canvas = L.canvas({ padding: 0.5 });
+    this._canvas = L.canvas({ padding: 0.5, tolerance: 2 });
 
     this.shorelinesGroup = L.layerGroup().addTo(map);
     this.clusterGroup    = this._buildClusterGroup();

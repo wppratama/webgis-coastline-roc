@@ -183,7 +183,6 @@ function _buildModal(mapInstance, layerCtrl) {
             <label class="mlm-chk"><input type="checkbox" id="lyt-source"     checked> Sumber Data</label>
             <label class="mlm-chk"><input type="checkbox" id="lyt-disclaimer" checked> Disclaimer</label>
             <label class="mlm-chk"><input type="checkbox" id="lyt-date"       checked> Tanggal</label>
-            <label class="mlm-chk"><input type="checkbox" id="lyt-inset"      checked> Peta Inset</label>
           </div>
         </div>
 
@@ -442,7 +441,7 @@ async function _renderCanvas(mapInstance) {
   const showSource     = _chk('lyt-source');
   const showDisclaimer = _chk('lyt-disclaimer');
   const showDate       = _chk('lyt-date');
-  const showInset      = _chk('lyt-inset');
+  const showInset      = false;
 
   const today = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
 
