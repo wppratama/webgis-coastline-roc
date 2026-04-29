@@ -159,7 +159,7 @@
       .map-bottombar { position: absolute; bottom: 14px; left: 14px; right: 14px; display: flex; align-items: center; justify-content: space-between; z-index: 500; pointer-events: none; }
       .coords-box, .scale-box { display: flex; align-items: center; gap: 8px; padding: 5px 12px; background: rgba(10,22,40,0.82); border: 1px solid var(--border); border-radius: var(--r-sm); font-family: var(--mono); font-size: 11px; color: var(--text-2); pointer-events: all; backdrop-filter: blur(4px); }
       .coord-sep { width: 1px; height: 11px; background: var(--border); }
-      .scale-line { width: 44px; height: 2px; background: var(--text-2); border-radius: 1px; position: relative; }
+      .scale-line { height: 2px; background: var(--text-2); border-radius: 1px; position: relative; transition: width 0.3s ease; min-width: 24px; max-width: 120px; }
       .scale-line::before, .scale-line::after { content: ''; position: absolute; width: 1px; height: 5px; background: var(--text-2); bottom: 0; }
       .scale-line::before { left: 0; } .scale-line::after { right: 0; }
 
@@ -472,7 +472,7 @@
                 <div class="stat-card" style="grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; padding:9px 14px;">
                   <div>
                     <div class="stat-label">Rata-rata Laju Perubahan</div>
-                    <div class="stat-unit" style="margin-top:2px;">m/tahun (viewport)</div>
+                    <div class="stat-unit" style="margin-top:2px;">m/tahun</div>
                   </div>
                   <div class="stat-value" id="stat-avg-rate" style="font-size:22px;">—</div>
                 </div>
@@ -497,7 +497,7 @@
                 </div>
                 <div class="layer-row">
                   <div class="layer-status"></div>
-                  <div class="layer-swatch" style="background:transparent; border: 1px dashed #fff; border-radius: 2px; text-align:center; font-size:10px; line-height:14px;">T</div>
+                  <div class="layer-swatch" style="background:#f0f0f0; border: 1px solid #ccc; border-radius: 4px; color: #333; text-align:center; font-size:11px; font-weight:bold; line-height:14px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"></div>
                   <span class="layer-name">Label Tahun Garis Pantai</span>
                   <label class="tog">
                     <input type="checkbox" id="toggle-label-sl"> <span class="tog-track"></span>
@@ -506,14 +506,15 @@
 
                 <div class="layer-row">
                   <div class="layer-status" id="status-rates"></div>
-                  <div class="layer-swatch" style="background:linear-gradient(135deg,#ff4d4d 50%,#00c9a7 50%);"></div>
+                  <div class="layer-swatch" style="background:linear-gradient(135deg,#ff4d4d 50%,#00c9a7 50%); border-radius: 50%; border: 1.5px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,0.3);"></div>
                   <span class="layer-name">Titik Laju Perubahan</span>
                   <label class="tog"><input type="checkbox" id="toggle-rates" checked><span class="tog-track"></span></label>
                 </div>
-                
+                                
                 <div class="layer-row">
                   <div class="layer-status"></div>
-                  <div class="layer-swatch" style="background:transparent; border: 1px dashed #fff; border-radius: 2px; text-align:center; font-size:10px; line-height:14px;">9.3</div>
+                  <div class="layer-swatch" style="background: #3498db; border: none; border-radius: 4px; color: white; text-align: center; font-size: 9px; font-weight: bold; line-height: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>
+                  
                   <span class="layer-name">Label Laju Perubahan</span>
                   <label class="tog">
                     <input type="checkbox" id="toggle-label-rt"> <span class="tog-track"></span>
@@ -782,8 +783,8 @@
             <span id="zoom-level" style="color:var(--text-3);">zoom 5</span>
           </div>
           <div class="scale-box">
-            <div class="scale-line"></div>
-            <span>~500 km</span>
+            <div class="scale-line" id="scale-line-bar" style="width:44px;"></div>
+            <span id="scale-label-text">—</span>
           </div>
         </div>
       </div>
@@ -791,5 +792,18 @@
     </div>
 
     <script type="module" src="/main.js"></script>
+
+    <!-- Scale bar dinamis: diupdate oleh setupMapLayout, fallback jika map tersedia langsung -->
+    <script>
+      // Fungsi ini dipanggil juga oleh mapLayout.js via _setupDynamicScaleBar()
+      // Script ini hanya sebagai fallback placeholder — update sesungguhnya
+      // dilakukan setelah map Leaflet diinisialisasi di main.js
+      window.__updateScaleBar = function(widthPx, label) {
+        const bar  = document.getElementById('scale-line-bar');
+        const text = document.getElementById('scale-label-text');
+        if (bar)  bar.style.width = widthPx + 'px';
+        if (text) text.textContent = label;
+      };
+    </script>
   </body>
 </html>

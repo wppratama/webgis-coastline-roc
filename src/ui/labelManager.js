@@ -46,6 +46,11 @@ export class LabelManager {
     this.map.on('moveend', () => this._render());
     this.map.on('zoomend', () => this._render());
 
+    this._flexZoomActive = false;
+    this._filterYearMax  = 2025; // akan di-set dari luar
+
+    // Tambahkan method baru:
+  
     // Inject CSS
     this._injectStyles();
 
@@ -53,6 +58,16 @@ export class LabelManager {
     this._buildButtons();
   }
 
+    setFlexZoom(isActive) {
+      this._flexZoomActive = isActive;
+      if (this._shorelineLabelsOn) this._renderShorelineLabels();
+    }
+
+    setYearMax(yearMax) {
+      this._filterYearMax = yearMax;
+    }
+
+    
   // ── PUBLIC API ──────────────────────────────────────────
 
   /** Tambah fitur garis pantai dari tile yang baru dimuat */
@@ -169,6 +184,10 @@ export class LabelManager {
       features.forEach(feature => {
         const geom = feature.geometry;
         if (!geom) return;
+
+        const yearInt = parseInt(year);
+        const isLatest = yearInt === parseInt(this._filterYearMax);
+        if (!this._flexZoomActive && !isLatest) return; // skip seperti tileLoader
 
         const lines = geom.type === 'LineString'
           ? [geom.coordinates]

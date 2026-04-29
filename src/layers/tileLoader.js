@@ -441,10 +441,12 @@ export class TileLoader {
 
     this._rateLayers.forEach(({ layer, rate, isErosi, isAkresi, isStabil }) => {
       const visible = this._visibleRate(rate, isErosi, isAkresi, isStabil);
-      layer.setStyle?.({
-        opacity:     visible ? 1 : 0,
-        fillOpacity: visible ? 1 : 0,
-      });
+      const inCluster = this.clusterGroup.hasLayer(layer);
+      if (visible && !inCluster) {
+        this.clusterGroup.addLayer(layer);
+      } else if (!visible && inCluster) {
+        this.clusterGroup.removeLayer(layer);
+      }
     });
 
     this._calculateViewportStats();

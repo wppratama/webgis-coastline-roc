@@ -74,6 +74,12 @@ setupSidebar({
 // ── 6. Toolbar ─────────────────────────────────────────────
 setupToolbar(map);
 setupFlexZoom(tileLoader);
+tileLoader.setFlexZoom = (isActive) => {
+  tileLoader._isFlexZoomActive = isActive;
+  tileLoader._applyFilterToLoaded();
+  labelMgr.setFlexZoom(isActive);
+  labelMgr.setYearMax(tileLoader._filter.yearMax);
+};
 
 
 // ── 8. Upload GeoJSON tambahan ─────────────────────────────
