@@ -11,6 +11,7 @@ import { FilterPanel } from './src/ui/filterPanel.js';
 import { setupFlexZoom } from './src/ui/flexZoom.js';
 import { LabelManager } from './src/ui/labelManager.js';
 import { setupMapLayout } from './src/ui/mapLayout.js';
+import { setupMeasure } from './src/ui/measure.js';
 import { setupSidebar } from './src/ui/sidebar.js';
 import { setupToolbar } from './src/ui/toolbar.js';
 
@@ -19,7 +20,6 @@ const map = initMap('map', { center: [-2.5, 118.0], zoom: 5 });
 
 // ── 2. Basemap ─────────────────────────────────────────────
 setupBasemap(map);
-setupMapLayout(map);
 
 // ── 3. Tile loader ─────────────────────────────────────────
 const tileLoader = new TileLoader(map, { yearMin: 1984, yearMax: 2025 });
@@ -36,6 +36,7 @@ tileLoader.onClearTiles = () => {
   labelMgr.clear();
 };
 
+setupMapLayout(map, null, tileLoader);
 const { shorelinesGroup, ratesGroup } = tileLoader;
 
 // ── 4. Filter panel ────────────────────────────────────────
@@ -49,12 +50,15 @@ const filterPanel = new FilterPanel({
   onFilterChange: (filter) => {
     // Teruskan ke TileLoader — dia yang urus opacity tiap layer
     tileLoader.applyFilter({
-      yearMin:    filter.yearMin,
-      yearMax:    filter.yearMax,
-      showAbrasi: filter.showAbrasi,
-      showAkresi: filter.showAkresi,
-      showStabil: filter.showStabil,
-      minRate:    parseInt(document.getElementById('fp-rate')?.value ?? 0),
+      yearMin:          filter.yearMin,
+      yearMax:          filter.yearMax,
+      showAbrasi:       filter.showAbrasi,
+      showAkresi:       filter.showAkresi,
+      showStabil:       filter.showStabil,
+      minRate:          parseInt(document.getElementById('fp-rate')?.value ?? 0),
+      certGood:         filter.certGood,
+      certInsufficient: filter.certInsufficient,
+      certUnstable:     filter.certUnstable,
     });
   },
 });
@@ -73,6 +77,7 @@ setupSidebar({
 
 // ── 6. Toolbar ─────────────────────────────────────────────
 setupToolbar(map);
+setupMeasure(map);
 setupFlexZoom(tileLoader);
 tileLoader.setFlexZoom = (isActive) => {
   tileLoader._isFlexZoomActive = isActive;

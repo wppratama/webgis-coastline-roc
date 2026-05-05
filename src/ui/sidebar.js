@@ -10,6 +10,18 @@ export function setupSidebar({
   onToggleShorelines,
   onToggleRates,
 } = {}) {
+  
+  // ── Sidebar toggle (hamburger) ────────────────────────
+  function toggleSidebar() {
+    const app     = document.getElementById('app');
+    const sidebar = document.getElementById('sidebar');
+    const isCollapsed = sidebar.classList.toggle('collapsed');
+    app.classList.toggle('sidebar-collapsed', isCollapsed);
+  }
+  document.getElementById('btn-sidebar-toggle')
+    ?.addEventListener('click', toggleSidebar);
+  document.getElementById('btn-topbar-sidebar')
+    ?.addEventListener('click', toggleSidebar);
 
   // ── Tab switching ─────────────────────────────────────
   document.querySelectorAll('.sb-tab').forEach(tab => {

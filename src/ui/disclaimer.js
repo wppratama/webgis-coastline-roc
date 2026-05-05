@@ -76,7 +76,7 @@ function _buildPopup() {
             Data garis pantai dan laju perubahan pada platform ini diekstraksi dari
             citra satelit <strong>Landsat 5, 7, 8, dan 9</strong> (USGS/NASA) menggunakan
             metode <em>sub-pixel waterline extraction</em> yang diadaptasi dari
-            <strong>Digital Earth Australia (DEA) Coastlines</strong> — Geoscience Australia.
+            <strong>Digital Earth Australia (DEA) Coastlines — Geoscience Australia.</strong>
           </p>
           <p class="disc-text" style="margin-top:8px;">
             Data mencakup wilayah Indonesia untuk periode
@@ -89,11 +89,11 @@ function _buildPopup() {
         <div class="disc-section">
           <div class="disc-section-label">Keterbatasan Data</div>
           <p class="disc-text">
-            Hasil analisis dipengaruhi oleh kondisi atmosfer, tutupan awan, dan
+            Hasil ekstraksi garis pantai dipengaruhi oleh kondisi atmosfer, tutupan awan, dan
             variasi pasang surut saat akuisisi citra. Data bersifat
             <strong>indikatif untuk keperluan riset dan monitoring</strong> dan tidak menggantikan
-            resmi seperti survei hidrografi, survei topografi terestris, pemetaan 
-            menggunakan UAV, LiDAR, Synthetic Aperture Radar (SAR), 
+            data survey resmi seperti survei hidrografi, survei topografi terestris, pemetaan 
+            menggunakan Unmanned Aerial Vehicle (UAV) / Drone, Light Detection and Ranging (LiDAR), Synthetic Aperture Radar (SAR), 
             serta survei lapangan langsung lainya.
           </p>
         </div>

@@ -49,12 +49,15 @@ export class TileLoader {
     this._rateLayers      = [];   // { layer, rate, isErosi, isAkresi, isStabil }
 
     this._filter = {
-      yearMin:    options.yearMin ?? 1985,
-      yearMax:    options.yearMax ?? 2025,
-      showAbrasi: true,
-      showAkresi: true,
-      showStabil: true,
-      minRate:    0,
+      yearMin:          options.yearMin ?? 1985,
+      yearMax:          options.yearMax ?? 2025,
+      showAbrasi:       true,
+      showAkresi:       true,
+      showStabil:       true,
+      minRate:          0,
+      certGood:         true,
+      certInsufficient: true,
+      certUnstable:     true,
     };
 
     this._isFlexZoomActive = false; 
@@ -68,12 +71,19 @@ export class TileLoader {
 
     // Trigger map events
     this.map.on('moveend', () => {
-      this._updateVisibleTiles();
-      this._calculateViewportStats();
+      clearTimeout(this._moveTimer);
+      this._moveTimer = setTimeout(() => {
+        this._updateVisibleTiles();
+        this._calculateViewportStats();
+      }, 150);
     });
 
     this.map.on('zoomend', () => {
-      this._applyFilterToLoaded();
+      clearTimeout(this._zoomTimer);
+      this._zoomTimer = setTimeout(() => {
+        this._applyFilterToLoaded();
+        this._calculateViewportStats();
+      }, 100);
     });
 
     await this._updateVisibleTiles();
@@ -82,7 +92,12 @@ export class TileLoader {
 
   applyFilter(filter) {
     this._filter = { ...this._filter, ...filter };
-    this._applyFilterToLoaded();
+    this._scheduleApplyFilter();
+  }
+
+  _scheduleApplyFilter() {
+    clearTimeout(this._applyFilterTimer);
+    this._applyFilterTimer = setTimeout(() => this._applyFilterToLoaded(), 40);
   }
 
   setShorelinesOpacity(opacity) {
@@ -233,6 +248,12 @@ export class TileLoader {
 
         this._shorelineLayers.push({ layer, year: tahun, certainty });
 
+        // Tooltip hanya di-bind jika garis ini memang visible saat pertama render
+        const isVisibleNow = this._visibleYear(tahun) &&
+          (this._isFlexZoomActive || this.map.getZoom() >= 16 ||
+           parseInt(tahun) === parseInt(this._filter.yearMax));
+
+        if (isVisibleNow) {
         layer.bindTooltip(
           `<div class="gis-tooltip">
              <span class="tooltip-label">Tahun · ${certLabel}</span>
@@ -240,6 +261,7 @@ export class TileLoader {
            </div>`,
           { sticky: true, direction: 'auto', className: 'gis-tooltip-wrap' }
         );
+        }
 
         layer.on('mouseover', function () {
           if (this.options.opacity === 0) return;
@@ -415,23 +437,49 @@ export class TileLoader {
     return true;
   }
 
-  _applyFilterToLoaded() {
-    const zoom = this.map.getZoom();
+  _visibleCertainty(certainty) {
+    const c = (certainty ?? 'good').toLowerCase();
+    if (c === 'good'              && !this._filter.certGood)         return false;
+    if (c === 'insufficient data' && !this._filter.certInsufficient) return false;
+    if (c === 'unstable data'     && !this._filter.certUnstable)     return false;
+    return true;
+  }
+
+_applyFilterToLoaded() {
+    const zoom     = this.map.getZoom();
     const isZoom16 = zoom >= 16;
 
     this._shorelineLayers.forEach(({ layer, year, certainty }) => {
       if (!layer.setStyle) return;
       const cs       = getCertStyle(certainty);
       const isLatest = parseInt(year) === parseInt(this._filter.yearMax);
-      const visible  = this._visibleYear(year) && (this._isFlexZoomActive || isZoom16 || isLatest);
+      const visible  = this._visibleYear(year)
+                    && this._visibleCertainty(certainty)
+                    && (this._isFlexZoomActive || isZoom16 || isLatest);
 
-      // 1. Matikan interaksi jika tidak visible
-      layer.options.interactive = visible; 
+      // ── Dirty-check: skip setStyle jika state tidak berubah ──
+      if (layer._lastVisible === visible) return;
+      layer._lastVisible = visible;
+
+      layer.options.interactive = visible;
       if (!visible) {
         layer.closeTooltip();
-        layer.closePopup();
+        layer.unbindTooltip();
+      } else if (!layer.getTooltip()) {
+        const certLabel = {
+          'good':              '✔ Good',
+          'insufficient data': '⚠ Insufficient Data',
+          'unstable data':     '✘ Unstable Data',
+        }[certainty] ?? certainty;
+        layer.bindTooltip(
+          `<div class="gis-tooltip">
+             <span class="tooltip-label">Tahun · ${certLabel}</span>
+             <span class="tooltip-value">${year}</span>
+           </div>`,
+          { sticky: true, direction: 'auto', className: 'gis-tooltip-wrap' }
+        );
       }
-      
+
       layer.setStyle({
         opacity:   visible ? cs.opacity : 0,
         dashArray: cs.dashArray,
@@ -455,14 +503,15 @@ export class TileLoader {
   // ── VIEWPORT STATS (RINGAN & DINAMIS) ────────────────────
 
   _calculateViewportStats() {
-    const zoom = this.map.getZoom();
+    clearTimeout(this._statsTimer);
+    this._statsTimer = setTimeout(() => this._doCalculateStats(), 200);
+  }
 
-    // 1. Matikan kalkulasi jika zoom di bawah 14
+  _doCalculateStats() {
+    const zoom = this.map.getZoom();
     if (zoom < 14) {
-      updateStatCard('stat-shoreline-count', '—');
       updateStatCard('stat-erosi-count',     '—');
       updateStatCard('stat-akresi-count',    '—');
-      updateStatCard('stat-length',          '—');
       
       const el = document.getElementById('stat-avg-rate');
       if (el) { 
@@ -474,7 +523,6 @@ export class TileLoader {
 
     // 2. Persiapan Hitung
     const bounds = this.map.getBounds();
-    let totalLenMeters = 0;
     let sumRate = 0, countRate = 0;
     let countErosi = 0, countAkresi = 0, countShoreline = 0;
 
@@ -490,16 +538,6 @@ export class TileLoader {
         // Hitung panjang secara presisi pakai fungsi Leaflet (hanya hitung ruas yang bersinggungan di layar)
         const latlngs = layer.getLatLngs();
         const lines = Array.isArray(latlngs[0]) ? latlngs : [latlngs]; // Handle MutiLineString vs LineString
-
-        lines.forEach(line => {
-          for (let i = 1; i < line.length; i++) {
-            const p1 = line[i-1];
-            const p2 = line[i];
-            if (bounds.contains(p1) || bounds.contains(p2)) {
-              totalLenMeters += p1.distanceTo(p2);
-            }
-          }
-        });
       }
     });
 
@@ -516,11 +554,8 @@ export class TileLoader {
     });
 
     // 5. Update UI Dashboard
-    const lenKm = (totalLenMeters / 1000).toFixed(2); // Dibuat format desimal agar lebih presisi di layar kecil
-    updateStatCard('stat-shoreline-count', countShoreline);
     updateStatCard('stat-erosi-count',     countErosi);
     updateStatCard('stat-akresi-count',    countAkresi);
-    updateStatCard('stat-length',          parseFloat(lenKm) > 0 ? lenKm : '—');
 
     const avgRate = countRate > 0 ? (sumRate / countRate).toFixed(2) : '—';
     const elRate = document.getElementById('stat-avg-rate');
@@ -530,7 +565,7 @@ export class TileLoader {
         ? (parseFloat(avgRate) < 0 ? '#ff4d4d' : '#00c9a7') 
         : 'inherit';
     }
-  }
+  }   // ← tutup _doCalculateStats
 
   // ── SETUP PANES ──────────────────────────────────────────
 
