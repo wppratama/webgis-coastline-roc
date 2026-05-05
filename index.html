@@ -25,6 +25,7 @@
         --text-2:     #8ba3c7;
         --text-3:     #4d6a94;
         --sidebar-w:  290px;
+        --sidebar-collapsed-w: 0px;
         --header-h:   52px;
         --font:       'DM Sans', sans-serif;
         --mono:       'DM Mono', monospace;
@@ -151,7 +152,7 @@
       .map-tool svg { width: 15px; height: 15px; }
 
       /* ── MAP CHIPS ── */
-      .map-chips { position: absolute; top: 14px; left: 14px; display: flex; align-items: center; gap: 8px; z-index: 500; }
+      .map-chips { position: absolute; top: 14px; left: 60px; display: flex; align-items: center; gap: 8px; z-index: 500; }
       .map-chip { display: flex; align-items: center; gap: 6px; padding: 5px 11px; background: rgba(10,22,40,0.82); border: 1px solid var(--border); border-radius: var(--r-sm); font-size: 11px; color: var(--text-2); backdrop-filter: blur(4px); }
       .chip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 
@@ -357,6 +358,85 @@
         flex-shrink: 0;
       }
 
+      /* ── SIDEBAR TOGGLE ── */
+      #sidebar {
+        transition: width 0.25s cubic-bezier(.4,0,.2,1),
+                    opacity 0.2s ease;
+        width: var(--sidebar-w);
+        min-width: 0;
+        overflow: hidden;
+      }
+      #sidebar.collapsed {
+        width: 0 !important;
+        opacity: 0;
+        pointer-events: none;
+      }
+      #app.sidebar-collapsed {
+        grid-template-columns: 0px 1fr;
+      }
+
+      /* Hamburger button — di atas peta */
+      #btn-sidebar-toggle {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        z-index: 600;
+        width: 36px; height: 36px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-md);
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer;
+        color: var(--text-2);
+        transition: all 0.15s;
+      }
+      #btn-sidebar-toggle:hover { background: var(--surface-2); color: var(--text-1); }
+      #btn-sidebar-toggle svg { width: 15px; height: 15px; }
+
+      /* map-chips geser ketika sidebar terbuka */
+      .map-chips { transition: left 0.25s cubic-bezier(.4,0,.2,1); }
+      #app:not(.sidebar-collapsed) .map-chips { left: 58px; }
+
+      /* ── FIX PANEL TERPOTONG DI LAYAR KECIL (≤ 1366px) ── */
+      @media (max-height: 768px) {
+        .sb-scroll { padding: 8px; gap: 7px; }
+        .panel-body { padding: 8px 10px; gap: 5px; }
+        .stats-grid { padding: 8px 10px; gap: 5px; }
+        .stat-value { font-size: 16px; }
+        .panel-header { padding: 7px 11px; }
+        .sb-tab { padding: 7px 4px 6px; font-size: 9px; }
+        :root { --header-h: 46px; }
+      }
+
+      /* ── MOBILE (≤ 768px) ── */
+      @media (max-width: 768px) {
+        :root { --sidebar-w: 100vw; }
+        #app {
+          grid-template-columns: 1fr;
+          grid-template-rows: var(--header-h) 1fr;
+        }
+        #sidebar {
+          position: fixed;
+          top: var(--header-h);
+          left: 0; bottom: 0;
+          width: 100vw !important;
+          z-index: 700;
+          transform: translateX(0);
+          transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+        }
+        #sidebar.collapsed {
+          width: 100vw !important;
+          opacity: 1;
+          pointer-events: all;
+          transform: translateX(-100%);
+        }
+        #map { grid-column: 1; }
+        #app:not(.sidebar-collapsed) .map-chips { left: 14px; }
+        #btn-sidebar-toggle { left: 14px; }
+        .brand-name { font-size: 12px; }
+        .brand-sub { display: none; }
+      }
+
       /* ── Tab Panels ── */
       .sb-panel {
         display: none;
@@ -449,11 +529,6 @@
               </div>
               <div class="stats-grid">
                 <div class="stat-card">
-                  <div class="stat-label">Garis Pantai</div>
-                  <div class="stat-value" id="stat-shoreline-count">—</div>
-                  <div class="stat-unit">fitur</div>
-                </div>
-                <div class="stat-card">
                   <div class="stat-label">Titik Abrasi</div>
                   <div class="stat-value" id="stat-erosi-count">—</div>
                   <div class="stat-unit">titik</div>
@@ -462,11 +537,6 @@
                   <div class="stat-label">Titik Akresi</div>
                   <div class="stat-value" id="stat-akresi-count">—</div>
                   <div class="stat-unit">titik</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label">Panjang Pantai</div>
-                  <div class="stat-value" id="stat-length">—</div>
-                  <div class="stat-unit">km (ter-load)</div>
                 </div>
                 <!-- Rata-rata laju — full width -->
                 <div class="stat-card" style="grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; padding:9px 14px;">
@@ -489,36 +559,44 @@
                 <svg class="ph-chev open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
               </div>
               <div class="panel-body">
+                <!-- 1. Garis Pantai: Ikon diubah menjadi garis diagonal di dalam kotak -->
                 <div class="layer-row">
                   <div class="layer-status" id="status-shorelines"></div>
-                  <div class="layer-swatch" style="background:#378ADD;"></div>
+                  <div class="layer-swatch" style="width: 18px; height: 4px; background: #378ADD; border-radius: 2px;"></div>
                   <span class="layer-name">Garis Pantai</span>
                   <label class="tog"><input type="checkbox" id="toggle-shorelines" checked><span class="tog-track"></span></label>
                 </div>
+
+                <!-- 2. Label Tahun: Kotak kosong dengan garis putus-putus (Merepresentasikan 'Overlay/Outline') -->
                 <div class="layer-row">
                   <div class="layer-status"></div>
-                  <div class="layer-swatch" style="background:#f0f0f0; border: 1px solid #ccc; border-radius: 4px; color: #333; text-align:center; font-size:11px; font-weight:bold; line-height:14px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"></div>
-                  <span class="layer-name">Label Tahun Garis Pantai</span>
-                  <label class="tog">
-                    <input type="checkbox" id="toggle-label-sl"> <span class="tog-track"></span>
-                  </label>
+                  <!-- Latar belakang biru sangat muda -->
+                  <div class="layer-swatch" style="width: 16px; height: 16px; background: #eaf3fc; border-radius: 3px; display: flex; align-items: center; justify-content: center;">
+                    <!-- Teks biru menyesuaikan warna garis pantai -->
+                    <span style="font-family: sans-serif; font-size: 10px; font-weight: bold; color: #378ADD; line-height: 1;">T</span>
+                  </div>
+                  <span class="layer-name">Label Garis Pantai</span>
+                  <label class="tog"><input type="checkbox" id="toggle-label-sl"><span class="tog-track"></span></label>
                 </div>
 
+                <!-- 3. Titik Laju Perubahan: Lingkaran mulus yang bersih (Point) -->
                 <div class="layer-row">
                   <div class="layer-status" id="status-rates"></div>
-                  <div class="layer-swatch" style="background:linear-gradient(135deg,#ff4d4d 50%,#00c9a7 50%); border-radius: 50%; border: 1.5px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,0.3);"></div>
+                  <div class="layer-swatch" style="width: 14px; height: 14px; background: linear-gradient(135deg, #ef4444 50%, #10b981 50%); border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.15);"></div>
                   <span class="layer-name">Titik Laju Perubahan</span>
                   <label class="tog"><input type="checkbox" id="toggle-rates" checked><span class="tog-track"></span></label>
                 </div>
-                                
+                              
+            <!-- 4. Label Laju Perubahan (Nuansa Netral/Slate) -->
                 <div class="layer-row">
                   <div class="layer-status"></div>
-                  <div class="layer-swatch" style="background: #3498db; border: none; border-radius: 4px; color: white; text-align: center; font-size: 9px; font-weight: bold; line-height: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>
-                  
+                  <!-- Latar belakang abu-abu kalem -->
+                  <div class="layer-swatch" style="width: 16px; height: 16px; background: #f1f5f9; border-radius: 3px; display: flex; align-items: center; justify-content: center;">
+                    <!-- Teks abu-abu gelap kebiruan -->
+                    <span style="font-family: sans-serif; font-size: 10px; font-weight: bold; color: #475569; line-height: 1;">T</span>
+                  </div>
                   <span class="layer-name">Label Laju Perubahan</span>
-                  <label class="tog">
-                    <input type="checkbox" id="toggle-label-rt"> <span class="tog-track"></span>
-                  </label>
+                  <label class="tog"><input type="checkbox" id="toggle-label-rt"><span class="tog-track"></span></label>
                 </div>
               </div>
             </div>
@@ -630,14 +708,14 @@
                   <div class="legend-line" style="background:#ff4d4d;"></div>
                   <div class="legend-info">
                     <div class="legend-name">Abrasi</div>
-                    <div class="legend-desc">Kemunduran garis pantai akibat dominasi proses erosi laut</div>
+                    <div class="legend-desc">Pengikisan garis pantai akibat kehilangan sedimen oleh gelombang dan arus laut (Bird, 2008; Hapke et al., 2013)</div>
                   </div>
                 </div>
                 <div class="legend-item">
                   <div class="legend-line" style="background:#00c9a7;"></div>
                   <div class="legend-info">
                     <div class="legend-name">Akresi</div>
-                    <div class="legend-desc">Perubahan garis pantai ke arah laut akibat deposisi sedimen</div>
+                    <div class="legend-desc">Penambahan garis pantai akibat pengendapan sedimen oleh proses laut (Bird, 2008; Masselink & Hughes, 2003)</div>
                   </div>
                 </div>
 
@@ -737,6 +815,13 @@
 
       <!-- MAP -->
       <div id="map">
+        <button id="btn-sidebar-toggle" title="Toggle Sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
         <div class="map-chips">
           <div class="map-chip">
             <div class="chip-dot" style="background:#00c9a7;"></div>
@@ -751,6 +836,15 @@
             </button>
             <button class="map-tool" id="btn-zoom-out" title="Zoom Out">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <div class="tool-group">
+            <button class="map-tool" id="btn-measure" title="Ukur Jarak / Luas">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2 12h20M2 12l4-4M2 12l4 4M22 12l-4-4M22 12l-4 4"/>
+                <line x1="8" y1="7" x2="8" y2="17" stroke-width="1.5" stroke-dasharray="2,2"/>
+                <line x1="16" y1="7" x2="16" y2="17" stroke-width="1.5" stroke-dasharray="2,2"/>
+              </svg>
             </button>
           </div>
           <div class="tool-group">

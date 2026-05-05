@@ -13,6 +13,8 @@
  *  ✔ Scale bar dinamis mengikuti zoom & posisi peta
  */
 
+import { setupGifExport } from './gifExport.js';
+
 const HTML2CANVAS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
 let _html2canvasLoaded = false;
 
@@ -86,13 +88,21 @@ function _computeScale(mapInstance, targetBarPx = 100) {
 
 // ── PUBLIC SETUP ─────────────────────────────────────────
 
-export function setupMapLayout(mapInstance, layerCtrl) {
+export function setupMapLayout(mapInstance, layerCtrl, tileLoader) {
   _injectStyles();
   _buildModal(mapInstance, layerCtrl);
   _buildToolbarButton(mapInstance, layerCtrl);
-
-  // Update scale bar di bottombar map utama secara dinamis
   _setupDynamicScaleBar(mapInstance);
+
+  // GIF export — diinisialisasi setelah modal ada di DOM
+  // Gunakan MutationObserver agar menunggu modal benar-benar ter-render
+  const observer = new MutationObserver(() => {
+    if (document.querySelector('.mlm-actions')) {
+      setupGifExport(mapInstance, tileLoader);
+      observer.disconnect();
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
 }
 
 // ── Dynamic Scale Bar (map utama) ────────────────────────
@@ -183,7 +193,6 @@ function _buildModal(mapInstance, layerCtrl) {
             <label class="mlm-chk"><input type="checkbox" id="lyt-source"     checked> Sumber Data</label>
             <label class="mlm-chk"><input type="checkbox" id="lyt-disclaimer" checked> Disclaimer</label>
             <label class="mlm-chk"><input type="checkbox" id="lyt-date"       checked> Tanggal</label>
-            <label class="mlm-chk"><input type="checkbox" id="lyt-inset"      checked> Peta Inset</label>
           </div>
         </div>
 
@@ -442,7 +451,7 @@ async function _renderCanvas(mapInstance) {
   const showSource     = _chk('lyt-source');
   const showDisclaimer = _chk('lyt-disclaimer');
   const showDate       = _chk('lyt-date');
-  const showInset      = _chk('lyt-inset');
+  const showInset      = false;
 
   const today = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
 

@@ -43,7 +43,7 @@ const BASEMAPS = {
 // Label overlay CartoDB (nama wilayah di atas satelit)
 const LABEL_OVERLAY = L.tileLayer(
   'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
-  { maxZoom: 20, attribution: '© CartoDB', opacity: 0.85 }
+  { maxZoom: 20, attribution: '© CartoDB', opacity: 0.55 }
 );
 
 let _activeKey = 'google_sat';   // default: Google Satellite

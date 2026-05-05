@@ -17,6 +17,7 @@ export class FilterPanel {
     this.mode           = 'range';   // 'range' | 'single'
     this.onFilterChange = onFilterChange;
     this.activeTypes    = new Set(['abrasi', 'akresi', 'stabil']);
+    this.activeCerts    = new Set(['good', 'insufficient', 'unstable']);
     this._animTimer     = null;
     this._animYear      = yearMin;
     this._build();
@@ -30,10 +31,13 @@ export class FilterPanel {
     return {
       yearMin,
       yearMax,
-      showAbrasi: this.activeTypes.has('abrasi'),
-      showAkresi: this.activeTypes.has('akresi'),
-      showStabil: this.activeTypes.has('stabil'),
-      minRate:    parseInt(document.getElementById('fp-rate')?.value ?? 0),
+      showAbrasi:       this.activeTypes.has('abrasi'),
+      showAkresi:       this.activeTypes.has('akresi'),
+      showStabil:       this.activeTypes.has('stabil'),
+      minRate:          parseInt(document.getElementById('fp-rate')?.value ?? 0),
+      certGood:         this.activeCerts.has('good'),
+      certInsufficient: this.activeCerts.has('insufficient'),
+      certUnstable:     this.activeCerts.has('unstable'),
     };
   }
 
@@ -183,23 +187,46 @@ export class FilterPanel {
 
           <div class="filter-divider"></div>
 
-          <!-- ── TIPE PERUBAHAN ── -->
+
+
+          <!-- ── KUALITAS DATA ── -->
           <div class="filter-section">
             <div class="filter-label-row">
-              <span class="filter-label">Tipe Perubahan Pantai</span>
+              <span class="filter-label">Kualitas Data Garis Pantai</span>
             </div>
-            <div class="type-chips">
-              <button class="type-chip active" data-type="abrasi">
-                <span class="chip-dot" style="background:#ff4d4d;"></span>
-                Abrasi
+            <div class="cert-chips">
+              <button class="cert-chip active" data-cert="good">
+                <span class="cert-icon cert-good">
+                  <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="2,5 4,7 8,3"/>
+                  </svg>
+                </span>
+                <span class="cert-info">
+                  <span class="cert-name">Good</span>
+                  <span class="cert-line cert-line-good"></span>
+                </span>
               </button>
-              <button class="type-chip active" data-type="akresi">
-                <span class="chip-dot" style="background:#00c9a7;"></span>
-                Akresi
+              <button class="cert-chip active" data-cert="insufficient">
+                <span class="cert-icon cert-insuf">
+                  <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 2v3M5 7v1"/>
+                  </svg>
+                </span>
+                <span class="cert-info">
+                  <span class="cert-name">Insufficient</span>
+                  <span class="cert-line cert-line-insuf"></span>
+                </span>
               </button>
-              <button class="type-chip active" data-type="stabil">
-                <span class="chip-dot" style="background:#8ba3c7;"></span>
-                Stabil
+              <button class="cert-chip active" data-cert="unstable">
+                <span class="cert-icon cert-unstab">
+                  <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M2 5h1M4 5h1M6 5h1M8 5h1"/>
+                  </svg>
+                </span>
+                <span class="cert-info">
+                  <span class="cert-name">Unstable</span>
+                  <span class="cert-line cert-line-unstab"></span>
+                </span>
               </button>
             </div>
           </div>
@@ -322,6 +349,23 @@ export class FilterPanel {
       });
     });
 
+    // Cert chips (kualitas data)
+    this.container.querySelectorAll('.cert-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cert = btn.dataset.cert;
+        if (this.activeCerts.has(cert)) {
+          if (this.activeCerts.size > 1) {
+            this.activeCerts.delete(cert);
+            btn.classList.remove('active');
+          }
+        } else {
+          this.activeCerts.add(cert);
+          btn.classList.add('active');
+        }
+        this._emitChange();
+      });
+    });
+
     // Rate slider
     document.getElementById('fp-rate')?.addEventListener('input', (e) => {
       const val = document.getElementById('fp-rate-val');
@@ -382,13 +426,16 @@ export class FilterPanel {
       if (fill) fill.style.width = pct + '%';
 
       this.onFilterChange?.({
-        yearMin:    this._animYear,
-        yearMax:    this._animYear,
-        showAbrasi: this.activeTypes.has('abrasi'),
-        showAkresi: this.activeTypes.has('akresi'),
-        showStabil: this.activeTypes.has('stabil'),
-        minRate:    parseInt(document.getElementById('fp-rate')?.value ?? 0),
-        animMode:   true,
+        yearMin:          this._animYear,
+        yearMax:          this._animYear,
+        showAbrasi:       this.activeTypes.has('abrasi'),
+        showAkresi:       this.activeTypes.has('akresi'),
+        showStabil:       this.activeTypes.has('stabil'),
+        minRate:          parseInt(document.getElementById('fp-rate')?.value ?? 0),
+        certGood:         this.activeCerts.has('good'),
+        certInsufficient: this.activeCerts.has('insufficient'),
+        certUnstable:     this.activeCerts.has('unstable'),
+        animMode:         true,
       });
 
       this._animYear++;
@@ -498,6 +545,44 @@ export class FilterPanel {
                        overflow:hidden; margin-top:4px; }
       .anim-progress-fill { height:100%; background:var(--amber);
                             border-radius:2px; transition:width .25s; width:0%; }
+
+      /* Cert chips — kualitas data */
+      .cert-chips { display:flex; flex-direction:column; gap:5px; }
+      .cert-chip {
+        display:flex; align-items:center; gap:8px; padding:6px 10px;
+        border-radius:6px; font-size:11px; cursor:pointer;
+        border:1px solid var(--border); background:transparent;
+        color:var(--text-3); font-family:var(--font); transition:all .15s;
+        width:100%; text-align:left;
+      }
+      .cert-chip.active { color:var(--text-1); background:var(--surface-2); border-color:var(--border-md); }
+      .cert-chip:hover:not(.active) { background:color-mix(in srgb, var(--surface-2) 50%, transparent); }
+
+      .cert-icon {
+        width:20px; height:20px; border-radius:4px; display:flex;
+        align-items:center; justify-content:center; flex-shrink:0;
+      }
+      .cert-good   { background:color-mix(in srgb,#4ade80 15%,transparent); color:#4ade80; }
+      .cert-insuf  { background:color-mix(in srgb,#fbbf24 15%,transparent); color:#fbbf24; }
+      .cert-unstab { background:color-mix(in srgb,#f87171 15%,transparent); color:#f87171; }
+
+      .cert-chip:not(.active) .cert-icon { opacity:0.35; }
+
+      .cert-info { display:flex; flex-direction:column; gap:3px; flex:1; }
+      .cert-name { font-weight:600; font-size:11px; line-height:1; }
+
+      /* Miniatur garis sebagai preview style */
+      .cert-line { display:block; height:2px; border-radius:1px; width:100%; opacity:0.6; }
+      .cert-line-good   { background:#a0b4c8; }
+      .cert-line-insuf  {
+        background:repeating-linear-gradient(90deg,#a0b4c8 0,#a0b4c8 8px,transparent 8px,transparent 13px);
+        height:1px;
+      }
+      .cert-line-unstab {
+        background:repeating-linear-gradient(90deg,#a0b4c8 0,#a0b4c8 2px,transparent 2px,transparent 7px);
+        height:1px;
+      }
+      .cert-chip:not(.active) .cert-line { opacity:0.2; }
     `;
     document.head.appendChild(s);
   }

@@ -23,7 +23,7 @@ export function initMap(containerId, opts = {}) {
       L.latLng(-15, 90),   // SW — bawah kiri
       L.latLng(12,  145)   // NE — atas kanan
     ),
-    maxBoundsViscosity: 0.85,  // 0=bebas, 1=hard lock
+    maxBoundsViscosity: 0.55,  // 0=bebas, 1=hard lock
   });
 
   L.control.attribution({
