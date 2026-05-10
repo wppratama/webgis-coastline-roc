@@ -318,7 +318,7 @@
       /* ── Tab Nav ── */
       .sb-tabs {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, 1fr);
         border-bottom: 1px solid var(--border);
         flex-shrink: 0;
         background: var(--navy-mid);
@@ -448,6 +448,15 @@
       .sb-panel.active {
         display: flex;
       }
+      
+      /* Kunci khusus untuk tab forecast agar tidak bocor */
+      #tab-forecast {
+        display: none !important;
+      }
+
+      #tab-forecast.active {
+        display: flex !important;
+      }
 
       .sb-panel .sb-scroll {
         flex: 1;
@@ -509,6 +518,14 @@
           <button class="sb-tab" data-tab="info">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             Info
+          </button>
+          <button class="sb-tab" data-tab="forecast">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+              <path d="M3 20h18"/>
+              <path d="M6 16l4-4 3 3 5-7"/>
+              <path d="M18 8h3v3"/>
+            </svg>
+            SLR View
           </button>
         </div>
 
@@ -800,6 +817,9 @@
 
           </div>
         </div>
+        <div class="sb-panel" id="tab-forecast"></div>
+
+        
 
         <!-- Footer -->
         <div class="sb-footer">
@@ -810,7 +830,6 @@
             Hasil bersifat indikatif — bukan produk survei resmi.
           </div>
         </div>
-
       </aside>
 
       <!-- MAP -->
@@ -884,7 +903,7 @@
       </div>
 
     </div>
-
+    
     <script type="module" src="/main.js"></script>
 
     <!-- Scale bar dinamis: diupdate oleh setupMapLayout, fallback jika map tersedia langsung -->
@@ -901,4 +920,3 @@
     </script>
   </body>
 </html>
-<!-- Trigger deploy ulang perbaikan server -->

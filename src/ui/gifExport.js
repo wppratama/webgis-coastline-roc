@@ -1,14 +1,24 @@
 /**
- * src/ui/gifExport.js
- * Export animasi GIF — garis pantai bergerak tahun per tahun.
- * Dipanggil dari mapLayout.js.
- *
- * Dependensi: gif.js (di-load otomatis via CDN)
+ * src/ui/gifExport.js  — v3.0
+ * FIX: willReadFrequently patch + tainted canvas + worker blob URL
  */
 
-const GIF_JS_CDN    = 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js';
-const GIF_WORKER    = 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js';
-const HTML2CANVAS   = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+const GIF_JS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js';
+
+// ─────────────────────────────────────────────────────────
+// FIX #1: Patch getContext SEBELUM gif.js diload.
+// gif.js memanggil getImageData ratusan kali per frame.
+// Tanpa willReadFrequently:true, Chrome throttle → stuck 0%.
+// ─────────────────────────────────────────────────────────
+function _patchCanvasWillReadFrequently() {
+  if (HTMLCanvasElement.prototype.__gifPatched) return;
+  const _orig = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(type, opts = {}) {
+    if (type === '2d') opts = { willReadFrequently: true, ...opts };
+    return _orig.call(this, type, opts);
+  };
+  HTMLCanvasElement.prototype.__gifPatched = true;
+}
 
 async function _loadScript(src) {
   if (document.querySelector(`script[src="${src}"]`)?.dataset.loaded) return;
@@ -16,18 +26,27 @@ async function _loadScript(src) {
     const s = document.createElement('script');
     s.src = src;
     s.onload  = () => { s.dataset.loaded = '1'; res(); };
-    s.onerror = rej;
+    s.onerror = () => rej(new Error(`Gagal memuat: ${src}`));
     document.head.appendChild(s);
   });
 }
 
-// ── Inject UI di sidebar modal ───────────────────────────
+// FIX #2: Worker blob URL — CDN worker diblokir CORS browser
+let _workerBlobUrl = null;
+async function _getWorkerBlobUrl() {
+  if (_workerBlobUrl) return _workerBlobUrl;
+  const res = await fetch(GIF_JS_CDN);
+  if (!res.ok) throw new Error('Gagal fetch gif.js dari CDN');
+  const src  = await res.text();
+  const blob = new Blob([src], { type: 'application/javascript' });
+  _workerBlobUrl = URL.createObjectURL(blob);
+  return _workerBlobUrl;
+}
+
 export function setupGifExport(mapInstance, tileLoader) {
   if (!mapInstance || !tileLoader) return;
-
   _injectGifStyles();
 
-  // Cari .mlm-actions dan tambahkan seksi GIF sebelumnya
   const actions = document.querySelector('.mlm-actions');
   if (!actions || document.getElementById('gif-section')) return;
 
@@ -41,7 +60,6 @@ export function setupGifExport(mapInstance, tileLoader) {
       </svg>
       Export Animasi GIF
     </div>
-
     <div class="gif-row">
       <div>
         <div class="mlm-sublabel">Tahun Mulai</div>
@@ -54,7 +72,6 @@ export function setupGifExport(mapInstance, tileLoader) {
                min="1985" max="2025" value="2025" step="1"/>
       </div>
     </div>
-
     <div class="gif-row">
       <div>
         <div class="mlm-sublabel">Interval (tahun)</div>
@@ -76,7 +93,6 @@ export function setupGifExport(mapInstance, tileLoader) {
         </select>
       </div>
     </div>
-
     <div class="gif-row" style="grid-template-columns:1fr;">
       <div>
         <div class="mlm-sublabel">Resolusi GIF</div>
@@ -87,14 +103,12 @@ export function setupGifExport(mapInstance, tileLoader) {
         </select>
       </div>
     </div>
-
     <div class="gif-progress-wrap" id="gif-progress-wrap" style="display:none;">
       <div class="gif-progress-bar">
         <div class="gif-progress-fill" id="gif-progress-fill"></div>
       </div>
       <div class="gif-progress-label" id="gif-progress-label">Menyiapkan...</div>
     </div>
-
     <button class="mlm-btn mlm-btn-gif" id="btn-export-gif">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
         <circle cx="12" cy="12" r="10"/>
@@ -104,14 +118,11 @@ export function setupGifExport(mapInstance, tileLoader) {
     </button>
   `;
 
-  // Sisipkan sebelum .mlm-actions
   actions.parentNode.insertBefore(section, actions);
-
   document.getElementById('btn-export-gif')
     .addEventListener('click', () => _startGifExport(mapInstance, tileLoader));
 }
 
-// ── Core export logic ────────────────────────────────────
 async function _startGifExport(mapInstance, tileLoader) {
   const btn      = document.getElementById('btn-export-gif');
   const progWrap = document.getElementById('gif-progress-wrap');
@@ -120,211 +131,196 @@ async function _startGifExport(mapInstance, tileLoader) {
 
   const yearStart  = parseInt(document.getElementById('gif-year-start')?.value  ?? 1984);
   const yearEnd    = parseInt(document.getElementById('gif-year-end')?.value    ?? 2025);
-  const interval   = parseInt(document.getElementById('gif-interval')?.value   ?? 1);
-  const delay      = parseInt(document.getElementById('gif-delay')?.value      ?? 500);
+  const interval   = parseInt(document.getElementById('gif-interval')?.value    ?? 1);
+  const delay      = parseInt(document.getElementById('gif-delay')?.value       ?? 500);
   const resolution = parseFloat(document.getElementById('gif-resolution')?.value ?? 0.75);
 
-  if (yearStart >= yearEnd) {
-    alert('Tahun mulai harus lebih kecil dari tahun akhir.');
-    return;
-  }
+  if (yearStart >= yearEnd) { alert('Tahun mulai harus lebih kecil dari tahun akhir.'); return; }
 
-  // Kumpulkan daftar tahun yang akan dianimasikan
   const years = [];
   for (let y = yearStart; y <= yearEnd; y += interval) years.push(y);
 
-  btn.disabled    = true;
-  btn.textContent = 'Sedang proses...';
+  btn.disabled = true;
   progWrap.style.display = '';
-
   const setProgress = (pct, label) => {
-    progFill.style.width  = pct + '%';
-    progLbl.textContent   = label;
+    progFill.style.width = Math.min(100, pct) + '%';
+    progLbl.textContent  = label;
   };
 
+  let lastCanvas = null;
+
   try {
-    await _loadScript(HTML2CANVAS);
+    setProgress(1, 'Memuat library...');
+
+    // URUTAN PENTING: patch dulu SEBELUM loadScript gif.js
+    _patchCanvasWillReadFrequently();
     await _loadScript(GIF_JS_CDN);
+    const workerBlobUrl = await _getWorkerBlobUrl();
 
     const mapEl = document.getElementById('map');
-    const W     = Math.round(mapEl.offsetWidth  * resolution);
-    const H     = Math.round(mapEl.offsetHeight * resolution);
+    const W = Math.round(mapEl.offsetWidth  * resolution);
+    const H = Math.round(mapEl.offsetHeight * resolution);
 
-    // Simpan state filter asli
     const origFilter = { ...tileLoader._filter };
 
-    // Inisialisasi GIF encoder
     const gif = new window.GIF({
-      workers:    2,
-      quality:    8,          // 1=best, 20=fastest
-      width:      W,
-      height:     H,
-      workerScript: GIF_WORKER,
-      repeat:     0,          // 0 = loop selamanya
+      workers:      2,
+      quality:      10,
+      width:        W,
+      height:       H,
+      workerScript: workerBlobUrl,
+      repeat:       0,
     });
 
-    setProgress(2, `Menyiapkan ${years.length} frame...`);
+    setProgress(5, `Menyiapkan ${years.length} frame...`);
 
-    // ── Render tiap frame ────────────────────────────────
     for (let i = 0; i < years.length; i++) {
       const year = years[i];
-      const pct  = Math.round((i / years.length) * 75) + 2;
-      setProgress(pct, `Frame ${i + 1}/${years.length} — tahun ${year}`);
+      setProgress(Math.round((i / years.length) * 72) + 5, `Frame ${i+1}/${years.length} — ${year}`);
 
-      // Terapkan filter: hanya tampilkan garis pantai s/d tahun ini
-      tileLoader.applyFilter({
-        ...origFilter,
-        yearMin: origFilter.yearMin,
-        yearMax: year,
-      });
+      tileLoader.applyFilter({ ...origFilter, yearMax: year });
+      await _waitFrames(100);
 
-      // Tunggu canvas leaflet selesai render
-      await _waitFrame(80);
-
-      // Ambil snapshot
-      const snap = await window.html2canvas(mapEl, {
-        useCORS:         true,
-        allowTaint:      true,
-        scale:           resolution,
-        backgroundColor: '#080f1e',
-        logging:         false,
-      });
-
-      // Tambahkan overlay tahun di sudut kiri bawah
+      // FIX #3: Capture ke canvas bersih (non-tainted) dengan willReadFrequently
+      const snap = await _captureCleanCanvas(mapEl, W, H, resolution);
       _drawYearOverlay(snap, year, yearStart, yearEnd);
-
       gif.addFrame(snap, { delay, copy: true });
+      lastCanvas = snap;
     }
 
-    // Tambah frame terakhir yang lebih lama (pause di akhir)
-    gif.addFrame(gif.frames[gif.frames.length - 1]?.data ?? gif.frames[0]?.data, {
-      delay: delay * 4,
-      copy:  true,
-    });
+    if (lastCanvas) gif.addFrame(lastCanvas, { delay: delay * 4, copy: true });
 
-    // Kembalikan filter ke semula
     tileLoader.applyFilter(origFilter);
-
-    // ── Encode GIF ──────────────────────────────────────
-    setProgress(80, 'Mengompres & encoding GIF...');
+    setProgress(79, 'Encoding GIF (harap tunggu)...');
 
     await new Promise((resolve, reject) => {
-      gif.on('progress', p => {
-        setProgress(80 + Math.round(p * 18), `Encoding GIF: ${Math.round(p * 100)}%`);
-      });
-
+      gif.on('progress', p => setProgress(79 + Math.round(p * 19), `Encoding: ${Math.round(p*100)}%`));
       gif.on('finished', blob => {
-        setProgress(100, 'Selesai! Mengunduh...');
-
-        // Download otomatis
+        setProgress(100, '✓ Selesai! Mengunduh...');
         const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.href     = url;
-        a.download = `animasi-garis-pantai_${yearStart}-${yearEnd}.gif`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-
+        const a = document.createElement('a');
+        a.href = url; a.download = `animasi-garis-pantai_${yearStart}-${yearEnd}.gif`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 15000);
         resolve();
       });
-
       gif.on('error', reject);
       gif.render();
     });
 
   } catch (err) {
-    console.error('GIF export error:', err);
-    setProgress(0, '⚠ Gagal: ' + err.message);
-    tileLoader.applyFilter({ ...tileLoader._filter }); // restore
+    console.error('[GIF]', err);
+    setProgress(0, '⚠ Gagal: ' + (err?.message ?? String(err)));
+    try { tileLoader.applyFilter({ ...tileLoader._filter }); } catch(_) {}
   } finally {
-    btn.disabled    = false;
-    btn.textContent = 'Buat Animasi GIF';
-    setTimeout(() => { progWrap.style.display = 'none'; }, 3000);
+    btn.disabled = false;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg> Buat Animasi GIF`;
+    setTimeout(() => { progWrap.style.display = 'none'; }, 5000);
   }
 }
 
-// ── Overlay tahun di canvas frame ───────────────────────
+// FIX #3: Canvas bersih non-tainted dengan willReadFrequently
+async function _captureCleanCanvas(mapEl, W, H, resolution) {
+  const out = document.createElement('canvas');
+  out.width  = W;
+  out.height = H;
+  // willReadFrequently di sini — ini canvas yang gif.js akan baca
+  const ctx = out.getContext('2d', { willReadFrequently: true });
+
+  ctx.fillStyle = '#080f1e';
+  ctx.fillRect(0, 0, W, H);
+
+  const mapRect = mapEl.getBoundingClientRect();
+
+  // Copy canvas Leaflet (tile layers)
+  for (const c of mapEl.querySelectorAll('canvas')) {
+    if (!c.width || !c.height) continue;
+    const r = c.getBoundingClientRect();
+    const dx = (r.left - mapRect.left) * resolution;
+    const dy = (r.top  - mapRect.top)  * resolution;
+    try {
+      c.toDataURL(); // throws if tainted
+      ctx.drawImage(c, dx, dy, c.width * resolution, c.height * resolution);
+    } catch (_) { /* basemap cross-origin — skip, background sudah solid */ }
+  }
+
+  // Composite SVG vector overlay (garis pantai — tidak tainted)
+  const overlayPane = mapEl.querySelector('.leaflet-overlay-pane');
+  if (overlayPane) {
+    for (const svg of overlayPane.querySelectorAll('svg')) {
+      try {
+        const r     = svg.getBoundingClientRect();
+        const clone = svg.cloneNode(true);
+        clone.setAttribute('width',  r.width);
+        clone.setAttribute('height', r.height);
+        const svgBlob = new Blob(
+          [new XMLSerializer().serializeToString(clone)],
+          { type: 'image/svg+xml;charset=utf-8' }
+        );
+        const svgUrl = URL.createObjectURL(svgBlob);
+        await new Promise(resolve => {
+          const img = new Image();
+          img.onload = () => {
+            const dx = (r.left - mapRect.left) * resolution;
+            const dy = (r.top  - mapRect.top)  * resolution;
+            ctx.drawImage(img, dx, dy, r.width * resolution, r.height * resolution);
+            URL.revokeObjectURL(svgUrl);
+            resolve();
+          };
+          img.onerror = () => { URL.revokeObjectURL(svgUrl); resolve(); };
+          img.src = svgUrl;
+        });
+      } catch (e) { console.warn('[GIF] SVG skip:', e.message); }
+    }
+  }
+
+  return out;
+}
+
 function _drawYearOverlay(canvas, year, yearStart, yearEnd) {
-  const ctx  = canvas.getContext('2d');
-  const W    = canvas.width;
-  const H    = canvas.height;
-
-  // Progress bar tipis di bawah
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const W = canvas.width, H = canvas.height;
   const pct = (year - yearStart) / Math.max(yearEnd - yearStart, 1);
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(0, H - 22, W, 22);
 
-  // Bar progress
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, H - 30, W, 30);
+
+  ctx.fillStyle = 'rgba(59,130,246,0.35)';
+  ctx.fillRect(0, H - 3, W, 3);
   ctx.fillStyle = '#3b82f6';
   ctx.fillRect(0, H - 3, Math.round(W * pct), 3);
 
-  // Label tahun
-  ctx.font         = `bold ${Math.round(W * 0.038)}px 'Inter', 'Arial', sans-serif`;
+  const fs = Math.max(14, Math.round(W * 0.036));
+  ctx.font = `bold ${fs}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
-
-  // Shadow
-  ctx.fillStyle    = 'rgba(0,0,0,0.7)';
-  ctx.fillText(String(year), 14 + 1, H - 11 + 1);
-
-  // Teks putih
+  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  ctx.fillText(String(year), 16, H - 15);
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(String(year), 14, H - 11);
+  ctx.fillText(String(year), 15, H - 16);
 }
 
-// ── Utility: tunggu N ms + animationFrame ───────────────
-function _waitFrame(ms = 60) {
-  return new Promise(resolve => {
-    setTimeout(() => requestAnimationFrame(resolve), ms);
-  });
+function _waitFrames(ms = 80) {
+  return new Promise(resolve =>
+    setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), ms)
+  );
 }
 
-// ── CSS ──────────────────────────────────────────────────
 function _injectGifStyles() {
   if (document.getElementById('gif-export-styles')) return;
   const s = document.createElement('style');
   s.id = 'gif-export-styles';
   s.textContent = `
-    .gif-section {
-      padding: 10px 14px 12px;
-      border-top: 1px solid rgba(255,255,255,0.05);
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-    }
-    .gif-header {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 9.5px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: .08em; color: #a78bfa; margin-bottom: 9px;
-      font-family: 'Inter', sans-serif;
-    }
-    .gif-row {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 6px; margin-bottom: 6px;
-    }
-    .gif-input { font-size: 11px !important; padding: 5px 8px !important; margin-bottom: 0 !important; }
-
-    .gif-progress-wrap { margin: 8px 0 6px; }
-    .gif-progress-bar {
-      height: 4px; background: rgba(255,255,255,0.08);
-      border-radius: 2px; overflow: hidden; margin-bottom: 5px;
-    }
-    .gif-progress-fill {
-      height: 100%; width: 0%; background: #a78bfa;
-      border-radius: 2px; transition: width .3s ease;
-    }
-    .gif-progress-label {
-      font-size: 10px; color: #6b7a99; font-family: 'Inter', sans-serif;
-      text-align: center;
-    }
-
-    .mlm-btn-gif {
-      display: flex; align-items: center; justify-content: center; gap: 6px;
-      width: 100%; padding: 8px 12px; border-radius: 7px; border: none;
-      font-size: 12px; font-weight: 500; font-family: 'Inter', sans-serif;
-      cursor: pointer; transition: all .15s; margin-top: 4px;
-      background: rgba(167,139,250,0.15);
-      color: #a78bfa;
-      border: 1px solid rgba(167,139,250,0.3);
-    }
-    .mlm-btn-gif:hover { background: rgba(167,139,250,0.25); }
-    .mlm-btn-gif:disabled { opacity: .4; cursor: not-allowed; }
+    .gif-section { padding:10px 14px 12px; border-top:1px solid rgba(255,255,255,0.05); border-bottom:1px solid rgba(255,255,255,0.05); }
+    .gif-header { display:flex; align-items:center; gap:6px; font-size:9.5px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:#a78bfa; margin-bottom:9px; font-family:'Inter',sans-serif; }
+    .gif-row { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px; }
+    .gif-input { font-size:11px !important; padding:5px 8px !important; margin-bottom:0 !important; }
+    .gif-progress-wrap { margin:8px 0 6px; }
+    .gif-progress-bar { height:4px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden; margin-bottom:5px; }
+    .gif-progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#7c3aed,#a78bfa); border-radius:2px; transition:width .25s ease; }
+    .gif-progress-label { font-size:10px; color:#6b7a99; font-family:'Inter',sans-serif; text-align:center; }
+    .mlm-btn-gif { display:flex; align-items:center; justify-content:center; gap:6px; width:100%; padding:8px 12px; border-radius:7px; font-size:12px; font-weight:500; font-family:'Inter',sans-serif; cursor:pointer; transition:all .15s; margin-top:4px; background:rgba(167,139,250,0.15); color:#a78bfa; border:1px solid rgba(167,139,250,0.3); }
+    .mlm-btn-gif:hover:not(:disabled) { background:rgba(167,139,250,0.28); }
+    .mlm-btn-gif:disabled { opacity:.45; cursor:not-allowed; }
   `;
   document.head.appendChild(s);
 }

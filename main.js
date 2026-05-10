@@ -12,6 +12,7 @@ import { setupFlexZoom } from './src/ui/flexZoom.js';
 import { LabelManager } from './src/ui/labelManager.js';
 import { setupMapLayout } from './src/ui/mapLayout.js';
 import { setupMeasure } from './src/ui/measure.js';
+import { setupSLRForecast, updateSLRRatesData } from './src/ui/seaLevelForecast.js';
 import { setupSidebar } from './src/ui/sidebar.js';
 import { setupToolbar } from './src/ui/toolbar.js';
 
@@ -30,6 +31,7 @@ tileLoader.onTileLoaded = (shorelineData, rateData) => {
   // Pastikan parameter .features disesuaikan dengan struktur GeoJSON-mu
   if (shorelineData?.features) labelMgr.addShorelineFeatures(shorelineData.features);
   if (rateData?.features)      labelMgr.addRateFeatures(rateData.features);
+  if (rateData?.features)      updateSLRRatesData(rateData.features);
 };
 
 tileLoader.onClearTiles = () => {
@@ -37,7 +39,9 @@ tileLoader.onClearTiles = () => {
 };
 
 setupMapLayout(map, null, tileLoader);
+setupSLRForecast(map, tileLoader, FilterPanel);
 const { shorelinesGroup, ratesGroup } = tileLoader;
+
 
 // ── 4. Filter panel ────────────────────────────────────────
 // Tambahkan <div id="filter-panel-wrap"></div> di sidebar HTML
@@ -48,7 +52,6 @@ const filterPanel = new FilterPanel({
   yearMin:        1985,
   yearMax:        2025,
   onFilterChange: (filter) => {
-    // Teruskan ke TileLoader — dia yang urus opacity tiap layer
     tileLoader.applyFilter({
       yearMin:          filter.yearMin,
       yearMax:          filter.yearMax,
@@ -60,6 +63,7 @@ const filterPanel = new FilterPanel({
       certInsufficient: filter.certInsufficient,
       certUnstable:     filter.certUnstable,
     });
+    onFilterChanged(filter);
   },
 });
 
