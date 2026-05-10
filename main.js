@@ -63,7 +63,6 @@ const filterPanel = new FilterPanel({
       certInsufficient: filter.certInsufficient,
       certUnstable:     filter.certUnstable,
     });
-    onFilterChanged(filter);
   },
 });
 
